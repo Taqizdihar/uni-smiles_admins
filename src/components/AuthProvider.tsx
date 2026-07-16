@@ -59,13 +59,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userData = response.data.user || response.data;
         setUser(userData);
         localStorage.setItem('unismiles_user', JSON.stringify(userData));
-      } catch (error) {
+      } catch (error: any) {
         console.error("Auth verification failed", error);
         localStorage.removeItem('unismiles_token');
         localStorage.removeItem('unismiles_user');
         localStorage.removeItem('token');
         setToken(null);
         setUser(null);
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          if (window.location.pathname !== '/') {
+            window.location.href = '/';
+          }
+        }
       } finally {
         setLoading(false);
       }

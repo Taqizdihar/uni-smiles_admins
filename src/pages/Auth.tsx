@@ -10,7 +10,6 @@ export const Auth: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Admin Mitra');
   const [partnerName, setPartnerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +35,7 @@ export const Auth: React.FC = () => {
           name, 
           email, 
           password, 
-          role,
+          role: "Admin Mitra",
           partner_name: partnerName || 'Uni-Smiles HQ'
         });
         
@@ -147,22 +146,6 @@ export const Auth: React.FC = () => {
                         placeholder="Enter your name"
                         className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground"
                       />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
-                      Role
-                    </label>
-                    <div className="relative group">
-                      <select
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground appearance-none cursor-pointer"
-                      >
-                        <option value="Admin Mitra" className="bg-[#1E293B]">Admin Mitra</option>
-                        <option value="Super Admin" className="bg-[#1E293B]">Super Admin</option>
-                      </select>
                     </div>
                   </div>
 
