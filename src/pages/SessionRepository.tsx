@@ -15,6 +15,7 @@ import {
 import { cn } from '../lib/utils';
 import { useSession } from '../SessionContext';
 import { toast } from 'sonner';
+import api from '../lib/api';
 
 export const SessionRepository: React.FC = () => {
   const [search, setSearch] = useState('');
@@ -70,7 +71,8 @@ export const SessionRepository: React.FC = () => {
 
   const downloadUrl = async (url: string, filename: string) => {
     try {
-      const response = await fetch(url);
+      const fullUrl = url.startsWith('/') ? `${api.defaults.baseURL || 'http://localhost:8000'}${url}` : url;
+      const response = await fetch(fullUrl);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -82,7 +84,8 @@ export const SessionRepository: React.FC = () => {
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Failed to download image", err);
-      window.open(url, '_blank');
+      const fullUrl = url.startsWith('/') ? `${api.defaults.baseURL || 'http://localhost:8000'}${url}` : url;
+      window.open(fullUrl, '_blank');
     }
   };
 

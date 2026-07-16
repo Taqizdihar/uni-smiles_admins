@@ -17,6 +17,7 @@ interface AuthContextType {
   role: string | null;
   token: string | null;
   loading: boolean;
+  isAuthenticated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
 }
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   token: null,
   loading: true,
+  isAuthenticated: false,
   login: () => {},
   logout: () => {}
 });
@@ -74,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (newToken: string, userData: User) => {
     localStorage.setItem('unismiles_token', newToken);
+    localStorage.setItem('token', newToken);
     localStorage.setItem('unismiles_user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
@@ -81,13 +84,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('unismiles_token');
+    localStorage.removeItem('token');
     localStorage.removeItem('unismiles_user');
     setToken(null);
     setUser(null);
   };
 
+  const isAuthenticated = Boolean(token);
+
   return (
-    <AuthContext.Provider value={{ user, role: user?.role || null, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, role: user?.role || null, token, loading, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

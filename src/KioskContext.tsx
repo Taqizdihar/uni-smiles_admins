@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { useAuth } from './components/AuthProvider';
+import api from './lib/api';
 
 export interface Kiosk {
   id: string;
@@ -38,7 +39,7 @@ interface KioskContextType {
 const KioskContext = createContext<KioskContextType | undefined>(undefined);
 
 export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const [kiosks, setKiosks] = useState<Kiosk[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,24 +53,17 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     lastHeartbeat: item.lastHeartbeat || item.last_heartbeat || null
   });
 
-  const getAuthHeaders = () => {
-    const activeToken = token || localStorage.getItem('unismiles_token') || localStorage.getItem('token') || '';
-    return activeToken ? { Authorization: `Bearer ${activeToken}` } : {};
-  };
-
-  // Fetch Kiosks on mount
+  // Fetch Kiosks conditional on isAuthenticated
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     async function fetchKiosks() {
       try {
-        const res = await fetch("/api/kiosks", {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setKiosks(Array.isArray(data) ? data.map(mapKiosk) : []);
-        } else {
-          console.error("Failed to fetch kiosks from backend");
-        }
+        const res = await api.get("/api/kiosks");
+        const data = res.data;
+        setKiosks(Array.isArray(data) ? data.map(mapKiosk) : []);
       } catch (err) {
         console.error("Error fetching kiosks:", err);
       } finally {
@@ -77,46 +71,24 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     }
     fetchKiosks();
-  }, [token]);
+  }, [isAuthenticated]);
 
   const addKiosk = async (kioskData: Omit<Kiosk, 'id' | 'status' | 'health'>) => {
     try {
-      const res = await fetch("/api/kiosks", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(kioskData)
-      });
-      if (res.ok) {
-        const newKiosk = await res.json();
-        setKiosks(prev => [...prev, mapKiosk(newKiosk)]);
-      } else {
-        toast.error("Failed to add kiosk to backend.");
-      }
+      const res = await api.post("/api/kiosks", kioskData);
+      const newKiosk = res.data.data || res.data;
+      setKiosks(prev => [...prev, mapKiosk(newKiosk)]);
     } catch (err) {
       console.error("Error adding kiosk:", err);
-      toast.error("Network error while adding kiosk.");
+      toast.error("Network error or failure while adding kiosk.");
     }
   };
 
   const updateKiosk = async (id: string, data: Partial<Kiosk>) => {
     try {
-      const res = await fetch(`/api/kiosks/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setKiosks(prev => prev.map(k => k.id === id ? mapKiosk(updated) : k));
-      } else {
-        console.error("Failed to update kiosk");
-      }
+      const res = await api.put(`/api/kiosks/${id}`, data);
+      const updated = res.data.data || res.data;
+      setKiosks(prev => prev.map(k => k.id === id ? mapKiosk(updated) : k));
     } catch (err) {
       console.error("Error updating kiosk:", err);
     }
@@ -127,55 +99,42 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // 1. Set status to RESTARTING locally for instant UI response
       setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'restarting' } : k));
       
-      const res = await fetch(`/api/kiosks/${id}/restart`, {
-        method: "POST",
-        headers: getAuthHeaders()
-      });
-      if (res.ok) {
-        // Poll backend after 3.2s to sync online state
-        setTimeout(async () => {
-          const syncRes = await fetch("/api/kiosks", {
-            headers: getAuthHeaders()
-          });
-          if (syncRes.ok) {
-            const synced = await syncRes.json();
-            setKiosks(Array.isArray(synced) ? synced.map(mapKiosk) : []);
-          }
-        }, 3200);
-      } else {
-        toast.error("Failed to initiate restart sequence.");
-      }
+      await api.post(`/api/kiosks/${id}/restart`);
+      // Poll backend after 3.2s to sync online state
+      setTimeout(async () => {
+        try {
+          const syncRes = await api.get("/api/kiosks");
+          const synced = syncRes.data;
+          setKiosks(Array.isArray(synced) ? synced.map(mapKiosk) : []);
+        } catch (syncErr) {
+          console.error("Error syncing kiosks post-restart:", syncErr);
+        }
+      }, 3200);
     } catch (err) {
       console.error("Error restarting kiosk:", err);
+      toast.error("Failed to initiate restart sequence.");
     }
   };
 
   const deleteKiosk = async (id: string) => {
     try {
-      const res = await fetch(`/api/kiosks/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders()
+      await api.delete(`/api/kiosks/${id}`);
+      setKiosks(prev => prev.filter(k => k.id !== id));
+      toast.error("Kiosk Berhasil Dihapus", {
+        icon: <Trash2 className="w-5 h-5 text-red-400" />,
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: 'rgba(239, 68, 68, 0.15)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          color: '#fff',
+          borderRadius: '9999px',
+          padding: '12px 24px',
+          fontWeight: '600',
+          fontSize: '14px'
+        }
       });
-      if (res.ok) {
-        setKiosks(prev => prev.filter(k => k.id !== id));
-        toast.error("Kiosk Berhasil Dihapus", {
-          icon: <Trash2 className="w-5 h-5 text-red-400" />,
-          duration: 3000,
-          position: 'top-center',
-          style: {
-            background: 'rgba(239, 68, 68, 0.15)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            color: '#fff',
-            borderRadius: '9999px',
-            padding: '12px 24px',
-            fontWeight: '600',
-            fontSize: '14px'
-          }
-        });
-      } else {
-        toast.error("Gagal menghapus kiosk.");
-      }
     } catch (err) {
       console.error("Error deleting kiosk:", err);
       toast.error("Error koneksi saat menghapus kiosk.");

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './components/AuthProvider';
+import api from './lib/api';
 
 export interface Template {
   id: string;
@@ -25,7 +26,7 @@ interface TemplateContextType {
 const TemplateContext = createContext<TemplateContextType | undefined>(undefined);
 
 export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,22 +42,17 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
     updatedAt: t.updatedAt ? { toDate: () => new Date(t.updatedAt) } : undefined
   });
 
-  const getAuthHeaders = () => {
-    const activeToken = token || localStorage.getItem('unismiles_token') || localStorage.getItem('token') || '';
-    return activeToken ? { Authorization: `Bearer ${activeToken}` } : {};
-  };
-
-  // Fetch Templates on mount
+  // Fetch Templates conditional on isAuthenticated
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     async function fetchTemplates() {
       try {
-        const res = await fetch("/api/templates", {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setTemplates(data.map(parseTemplate));
-        }
+        const res = await api.get("/api/frame_templates");
+        const data = res.data;
+        setTemplates(Array.isArray(data) ? data.map(parseTemplate) : (data && Array.isArray(data.data) ? data.data.map(parseTemplate) : []));
       } catch (err) {
         console.error("Error fetching templates:", err);
       } finally {
@@ -64,24 +60,13 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
     }
     fetchTemplates();
-  }, [token]);
+  }, [isAuthenticated]);
 
   const addTemplate = async (templateData: Omit<Template, 'id' | 'usageCount'>) => {
     try {
-      const res = await fetch("/api/templates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(templateData)
-      });
-      if (res.ok) {
-        const newTemplate = await res.json();
-        setTemplates(prev => [parseTemplate(newTemplate), ...prev]);
-      } else {
-        toast.error("Failed to upload template.");
-      }
+      const res = await api.post("/api/frame_templates", templateData);
+      const newTemplate = res.data.data || res.data;
+      setTemplates(prev => [parseTemplate(newTemplate), ...prev]);
     } catch (err) {
       console.error("Error adding template:", err);
       toast.error("Network error while adding template.");
@@ -90,18 +75,9 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const editTemplate = async (id: string, updates: Partial<Template>) => {
     try {
-      const res = await fetch(`/api/templates/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(updates)
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setTemplates(prev => prev.map(t => t.id === id ? parseTemplate(updated) : t));
-      }
+      const res = await api.put(`/api/frame_templates/${id}`, updates);
+      const updated = res.data.data || res.data;
+      setTemplates(prev => prev.map(t => t.id === id ? parseTemplate(updated) : t));
     } catch (err) {
       console.error("Error editing template:", err);
     }
@@ -109,13 +85,8 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const deleteTemplate = async (id: string) => {
     try {
-      const res = await fetch(`/api/templates/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders()
-      });
-      if (res.ok) {
-        setTemplates(prev => prev.filter(t => t.id !== id));
-      }
+      await api.delete(`/api/frame_templates/${id}`);
+      setTemplates(prev => prev.filter(t => t.id !== id));
     } catch (err) {
       console.error("Error deleting template:", err);
     }

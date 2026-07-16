@@ -25,6 +25,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { useAuth } from '../components/AuthProvider';
+import api from '../lib/api';
 
 // --- Types ---
 
@@ -171,6 +173,7 @@ const PERMISSION_MATRIX = [
 ];
 
 export const UserManager: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   // --- State ---
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,13 +207,15 @@ export const UserManager: React.FC = () => {
 
   // --- Effects ---
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     async function fetchUsers() {
       try {
-        const res = await fetch("/api/users");
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(data);
-        }
+        const res = await api.get("/api/users");
+        const data = res.data;
+        setUsers(Array.isArray(data) ? data : (data.data || []));
       } catch (err) {
         console.error("Error fetching users:", err);
       } finally {
@@ -218,7 +223,7 @@ export const UserManager: React.FC = () => {
       }
     }
     fetchUsers();
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     localStorage.setItem(CURRENT_USER_SIM_KEY, currentUserSim);
@@ -306,27 +311,15 @@ export const UserManager: React.FC = () => {
 
     try {
       if (editingUser) {
-        const res = await fetch(`/api/users/${editingUser.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData)
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setUsers(users.map(u => u.id === editingUser.id ? updated : u));
-          toast.success('User updated successfully.');
-        }
+        const res = await api.put(`/api/users/${editingUser.id}`, formData);
+        const updated = res.data.data || res.data;
+        setUsers(users.map(u => u.id === editingUser.id ? updated : u));
+        toast.success('User updated successfully.');
       } else {
-        const res = await fetch("/api/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData)
-        });
-        if (res.ok) {
-          const newUser = await res.json();
-          setUsers([...users, newUser]);
-          toast.success('User added successfully.');
-        }
+        const res = await api.post("/api/users", formData);
+        const newUser = res.data.data || res.data;
+        setUsers([...users, newUser]);
+        toast.success('User added successfully.');
       }
       setIsModalOpen(false);
     } catch (err) {
@@ -346,13 +339,9 @@ export const UserManager: React.FC = () => {
 
     if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
       try {
-        const res = await fetch(`/api/users/${id}`, {
-          method: "DELETE"
-        });
-        if (res.ok) {
-          setUsers(users.filter(u => u.id !== id));
-          toast.success('User deleted.');
-        }
+        await api.delete(`/api/users/${id}`);
+        setUsers(users.filter(u => u.id !== id));
+        toast.success('User deleted.');
       } catch (err) {
         console.error("Error deleting user:", err);
         toast.error("Failed to delete user.");
@@ -365,16 +354,10 @@ export const UserManager: React.FC = () => {
     if (!user) return;
     const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
     try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setUsers(users.map(u => u.id === id ? updated : u));
-        toast.success('Status updated.');
-      }
+      const res = await api.put(`/api/users/${id}`, { status: newStatus });
+      const updated = res.data.data || res.data;
+      setUsers(users.map(u => u.id === id ? updated : u));
+      toast.success('Status updated.');
     } catch (err) {
       console.error("Error toggling status:", err);
     }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './components/AuthProvider';
+import api from './lib/api';
 
 export interface Session {
   id: string;
@@ -18,26 +19,29 @@ interface SessionContextType {
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch Sessions on mount
+  // Fetch Sessions conditional on isAuthenticated
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     async function fetchSessions() {
       try {
-        const activeToken = token || localStorage.getItem('unismiles_token') || localStorage.getItem('token') || '';
-        const res = await fetch("/api/sessions", {
-          headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {}
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSessions(Array.isArray(data) ? data.map((item: any) => ({
-            ...item,
-            id: String(item.id),
-            photos: Array.isArray(item.photos) ? item.photos : []
-          })) : []);
-        }
+        const res = await api.get("/api/sessions");
+        const data = res.data;
+        setSessions(Array.isArray(data) ? data.map((item: any) => ({
+          ...item,
+          id: String(item.id),
+          photos: Array.isArray(item.photos) ? item.photos : []
+        })) : (data && Array.isArray(data.data) ? data.data.map((item: any) => ({
+          ...item,
+          id: String(item.id),
+          photos: Array.isArray(item.photos) ? item.photos : []
+        })) : []));
       } catch (err) {
         console.error("Error fetching sessions:", err);
       } finally {
@@ -45,7 +49,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     }
     fetchSessions();
-  }, [token]);
+  }, [isAuthenticated]);
 
   return (
     <SessionContext.Provider value={{ sessions, loading }}>

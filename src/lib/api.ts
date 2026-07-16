@@ -26,7 +26,9 @@ api.interceptors.response.use(
       localStorage.removeItem('unismiles_token');
       localStorage.removeItem('unismiles_user');
       localStorage.removeItem('token');
-      window.location.href = '/';
+      if (window.location.pathname !== '/') {
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }

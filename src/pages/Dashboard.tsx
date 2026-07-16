@@ -24,6 +24,7 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../components/AuthProvider';
 import { toast } from 'sonner';
+import api from '../lib/api';
 
 const COLORS = ['#FFB800', '#FF6B00', '#F1F5F9', '#475569', '#3B82F6'];
 
@@ -32,42 +33,38 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const [range, setRange] = useState<'7' | '30' | '90'>('30');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isUnauthorized, setIsUnauthorized] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     async function fetchAnalytics() {
       setLoading(true);
       try {
-        const token = localStorage.getItem('unismiles_token') || localStorage.getItem('token') || '';
-        const res = await fetch(`/api/analytics?range=${range}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (res.ok) {
-          const resData = await res.json();
-          if (active) {
-            setData(resData);
-            setIsUnauthorized(false);
-          }
-        } else if (res.status === 401) {
+        const res = await api.get(`/api/analytics?range=${range}`);
+        const resData = res.data;
+        if (active) {
+          setData(resData);
+          setIsUnauthorized(false);
+        }
+      } catch (err: any) {
+        if (err.response && err.response.status === 401) {
           if (active) {
             setIsUnauthorized(true);
             setData(null);
           }
           toast.error("Session unauthorized. Please log in again.");
         } else {
+          console.error("Error loading analytics:", err);
           toast.error("Failed to load dashboard analytics");
         }
-      } catch (err) {
-        console.error("Error loading analytics:", err);
-        toast.error("Network error while loading analytics");
       } finally {
         if (active) {
           setLoading(false);
@@ -78,7 +75,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
     return () => {
       active = false;
     };
-  }, [range]);
+  }, [range, isAuthenticated]);
 
   const rangeLabel = range === '7' ? 'this week' : range === '30' ? 'this month' : 'last 90 days';
 

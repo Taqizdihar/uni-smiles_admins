@@ -10,6 +10,8 @@ export const Auth: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('Admin Mitra');
+  const [partnerName, setPartnerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -24,15 +26,39 @@ export const Auth: React.FC = () => {
       if (isLogin) {
         const response = await api.post('/api/auth/login', { email, password });
         const data = response.data;
-        
+        if (!data || !data.token) {
+          throw new Error("Invalid response from login server.");
+        }
         login(data.token, data.user);
         window.location.reload();
       } else {
-        await api.post('/api/auth/register', { name, email, password });
+        const regResponse = await api.post('/api/auth/register', { 
+          name, 
+          email, 
+          password, 
+          role,
+          partner_name: partnerName || 'Uni-Smiles HQ'
+        });
         
-        setIsLogin(true);
-        setError("Registration successful. Please login.");
-        setPassword('');
+        if (regResponse.data && regResponse.data.token) {
+          login(regResponse.data.token, regResponse.data.user || regResponse.data.data);
+          window.location.reload();
+        } else {
+          try {
+            const loginRes = await api.post('/api/auth/login', { email, password });
+            const loginData = loginRes.data;
+            if (loginData && loginData.token) {
+              login(loginData.token, loginData.user);
+              window.location.reload();
+              return;
+            }
+          } catch (autoErr) {
+            // Fallback to manual login prompt if auto login fails
+          }
+          setIsLogin(true);
+          setError("Registration successful. Please login.");
+          setPassword('');
+        }
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'An error occurred. Please try again.';
@@ -106,22 +132,55 @@ export const Auth: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {!isLogin && (
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
-                    Name
-                  </label>
-                  <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-primary transition-colors" />
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter your name"
-                      className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground"
-                    />
+                <>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
+                      Name
+                    </label>
+                    <div className="relative group">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-primary transition-colors" />
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Enter your name"
+                        className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground"
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
+                      Role
+                    </label>
+                    <div className="relative group">
+                      <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground appearance-none cursor-pointer"
+                      >
+                        <option value="Admin Mitra" className="bg-[#1E293B]">Admin Mitra</option>
+                        <option value="Super Admin" className="bg-[#1E293B]">Super Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
+                      Partner / Branch Name
+                    </label>
+                    <div className="relative group">
+                      <input
+                        type="text"
+                        value={partnerName}
+                        onChange={(e) => setPartnerName(e.target.value)}
+                        placeholder="e.g. Telkom University Branch"
+                        className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground"
+                      />
+                    </div>
+                  </div>
+                </>
               )}
               
               <div className="space-y-2">
