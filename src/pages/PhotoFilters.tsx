@@ -1,119 +1,228 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Camera, 
   Trash2, 
   Plus, 
   RotateCcw, 
-  Eye, 
   Edit2, 
-  CheckCircle2, 
   X,
-  Check
+  Check,
+  Sparkles,
+  Layers,
+  Image as ImageIcon,
+  Loader2,
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import api from '../lib/api';
 
 interface PhotoFilter {
-  id: string;
+  id: string | number;
   name: string;
-  description: string;
-  cssFilter: string;
-  enabled: boolean;
+  description?: string;
+  css_filter?: string;
+  cssFilter?: string;
+  is_active?: boolean | number;
+  enabled?: boolean;
+  type?: 'color' | 'overlay' | 'sticker' | string;
+  preview_url?: string;
+  previewUrl?: string;
   isDefault?: boolean;
 }
 
-const DEFAULT_FILTERS: PhotoFilter[] = [
-  { id: '1', name: 'Normal', description: 'Original capture with no modifications.', cssFilter: 'none', enabled: true, isDefault: true },
-  { id: '2', name: 'B&W', description: 'Timeless black and white aesthetic.', cssFilter: 'grayscale(100%)', enabled: true },
-  { id: '3', name: 'Sepia', description: 'Warm, aged photographic style.', cssFilter: 'sepia(80%)', enabled: true },
-  { id: '4', name: 'Warm', description: 'Enhanced warmth and vibrance.', cssFilter: 'saturate(130%) contrast(105%) brightness(105%)', enabled: true },
-  { id: '5', name: 'Bright', description: 'Increased exposure for a clean look.', cssFilter: 'brightness(120%) contrast(105%)', enabled: true },
-  { id: '6', name: 'High Contrast', description: 'Bold shadows and punchy highlights.', cssFilter: 'contrast(150%) saturate(120%)', enabled: true },
-  { id: '7', name: 'Vintage', description: 'Faded film look with a warm tint.', cssFilter: 'sepia(50%) contrast(90%) brightness(105%)', enabled: true },
-  { id: '8', name: 'Cool', description: 'Distinctive blue/cyan color shift.', cssFilter: 'hue-rotate(180deg) saturate(110%)', enabled: true },
-  { id: '9', name: 'Vivid', description: 'Explosive colors and high detail.', cssFilter: 'saturate(160%) contrast(115%)', enabled: true },
-  { id: '10', name: 'Soft', description: 'Dreamy low-contrast velvet look.', cssFilter: 'brightness(108%) contrast(90%) saturate(90%)', enabled: true },
-];
+const resolveImageUrl = (url?: string): string => {
+  if (!url) return '';
+  if (url.startsWith('/uploads')) {
+    return `http://localhost:8000${url}`;
+  }
+  return url;
+};
 
-const FILTERS_STORAGE_KEY = 'unismiles_photo_filters';
+const getFilterCss = (filter: PhotoFilter): string => {
+  return filter.css_filter || filter.cssFilter || 'none';
+};
+
+const getFilterActive = (filter: PhotoFilter): boolean => {
+  if (filter.is_active !== undefined) {
+    return Boolean(Number(filter.is_active));
+  }
+  if (filter.enabled !== undefined) {
+    return filter.enabled;
+  }
+  return true;
+};
+
+const getFilterType = (filter: PhotoFilter): 'color' | 'overlay' | 'sticker' => {
+  const type = filter.type;
+  if (type === 'overlay' || type === 'sticker') return type;
+  return 'color';
+};
+
+const getFilterPreviewUrl = (filter: PhotoFilter): string => {
+  return resolveImageUrl(filter.preview_url || filter.previewUrl || '');
+};
+
+const SAMPLE_PHOTO = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=300&fit=crop';
 
 export const PhotoFilters: React.FC = () => {
-  const [filters, setFilters] = useState<PhotoFilter[]>(() => {
-    const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_FILTERS;
-  });
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filters, setFilters] = useState<PhotoFilter[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingFilter, setEditingFilter] = useState<PhotoFilter | null>(null);
-  const [newFilter, setNewFilter] = useState<Omit<PhotoFilter, 'id'>>({
+
+  // Form State matching backend & user specifications
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    type: 'color' | 'overlay' | 'sticker';
+    is_active: boolean;
+    css_filter: string;
+    preview_url: string;
+  }>({
     name: '',
     description: '',
-    cssFilter: '',
-    enabled: true
+    type: 'color',
+    is_active: true,
+    css_filter: 'none',
+    preview_url: ''
   });
 
-  useEffect(() => {
-    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
-  }, [filters]);
-
-  const toggleFilter = (id: string) => {
-    setFilters(filters.map(f => {
-      if (f.id === id && !f.isDefault) {
-        return { ...f, enabled: !f.enabled };
+  const fetchFilters = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get('/api/filters');
+      if (response.data && Array.isArray(response.data.data)) {
+        setFilters(response.data.data);
+      } else if (Array.isArray(response.data)) {
+        setFilters(response.data);
+      } else {
+        setFilters([]);
       }
-      return f;
-    }));
+    } catch (error: any) {
+      console.error('Failed to fetch photo filters:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load filters from server.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
+
+  const toggleFilterActive = async (filter: PhotoFilter) => {
+    const currentActive = getFilterActive(filter);
+    const updatedActive = !currentActive;
+    
+    // Optimistic update
+    setFilters(prev => prev.map(f => f.id === filter.id ? { ...f, is_active: updatedActive ? 1 : 0, enabled: updatedActive } : f));
+
+    try {
+      const payload = {
+        name: filter.name,
+        css_filter: getFilterCss(filter),
+        is_active: updatedActive ? 1 : 0,
+        type: getFilterType(filter),
+        preview_url: filter.preview_url || filter.previewUrl || '',
+        description: filter.description || ''
+      };
+      await api.put(`/api/filters/${filter.id}`, payload);
+      toast.success(`Filter "${filter.name}" ${updatedActive ? 'enabled' : 'disabled'}.`);
+    } catch (error: any) {
+      console.error('Failed to toggle filter status:', error);
+      toast.error(error?.response?.data?.message || 'Failed to update filter status.');
+      // Revert optimistic update
+      setFilters(prev => prev.map(f => f.id === filter.id ? { ...f, is_active: currentActive ? 1 : 0, enabled: currentActive } : f));
+    }
   };
 
-  const deleteFilter = (id: string) => {
-    if (filters.find(f => f.id === id)?.isDefault) return;
-    setFilters(filters.filter(f => f.id !== id));
-    toast.success('Filter deleted successfully.');
+  const deleteFilter = async (id: string | number, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete filter "${name}"?`)) return;
+
+    try {
+      await api.delete(`/api/filters/${id}`);
+      setFilters(prev => prev.filter(f => f.id !== id));
+      toast.success('Filter deleted successfully.');
+    } catch (error: any) {
+      console.error('Failed to delete filter:', error);
+      toast.error(error?.response?.data?.message || 'Failed to delete filter.');
+    }
   };
 
-  const handleSaveFilter = () => {
-    if (!newFilter.name || !newFilter.cssFilter) {
-      toast.error('Name and CSS Filter are required.');
+  const handleOpenModal = (filter: PhotoFilter | null = null) => {
+    if (filter) {
+      setEditingFilter(filter);
+      setFormData({
+        name: filter.name || '',
+        description: filter.description || '',
+        type: getFilterType(filter),
+        is_active: getFilterActive(filter),
+        css_filter: getFilterCss(filter),
+        preview_url: filter.preview_url || filter.previewUrl || ''
+      });
+    } else {
+      setEditingFilter(null);
+      setFormData({
+        name: '',
+        description: '',
+        type: 'color',
+        is_active: true,
+        css_filter: 'grayscale(100%) contrast(110%)',
+        preview_url: ''
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSaveFilter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      toast.error('Filter Name is required.');
+      return;
+    }
+    if (formData.type === 'color' && !formData.css_filter.trim()) {
+      toast.error('CSS Filter value is required for color filters.');
       return;
     }
 
-    if (editingFilter) {
-      setFilters(filters.map(f => f.id === editingFilter.id ? { ...editingFilter, ...newFilter, id: f.id } : f));
-      toast.success('Filter updated.');
-    } else {
-      const filter: PhotoFilter = {
-        id: Date.now().toString(),
-        ...newFilter
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        type: formData.type,
+        is_active: formData.is_active ? 1 : 0,
+        css_filter: formData.css_filter.trim() || 'none',
+        preview_url: formData.preview_url.trim()
       };
-      setFilters([...filters, filter]);
-      toast.success('New filter created.');
+
+      if (editingFilter) {
+        await api.put(`/api/filters/${editingFilter.id}`, payload);
+        toast.success('Filter updated successfully.');
+      } else {
+        await api.post('/api/filters', payload);
+        toast.success('New filter created successfully.');
+      }
+
+      setIsModalOpen(false);
+      setEditingFilter(null);
+      await fetchFilters();
+    } catch (error: any) {
+      console.error('Failed to save filter:', error);
+      toast.error(error?.response?.data?.message || 'Failed to save filter.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsModalOpen(false);
-    setEditingFilter(null);
-    setNewFilter({ name: '', description: '', cssFilter: '', enabled: true });
-  };
-
-  const loadDefaults = () => {
-    setFilters(DEFAULT_FILTERS);
-    toast.info('Default filters loaded.');
-  };
-
-  const startEdit = (filter: PhotoFilter) => {
-    setEditingFilter(filter);
-    setNewFilter({
-      name: filter.name,
-      description: filter.description,
-      cssFilter: filter.cssFilter,
-      enabled: filter.enabled
-    });
-    setIsModalOpen(true);
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold tracking-tight text-foreground flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-xl">
@@ -121,190 +230,260 @@ export const PhotoFilters: React.FC = () => {
             </div>
             Photo Filters
           </h1>
-          <p className="text-muted mt-1 font-medium">Enable or create photo filters for the kiosk experience.</p>
+          <p className="text-muted mt-1 font-medium">Manage color grading, overlays, and sticker filters for the kiosk experience.</p>
         </div>
         
         <div className="flex items-center gap-3">
           <button 
-            onClick={loadDefaults}
-            className="px-4 py-2 bg-white/5 border border-white/10 text-foreground font-bold rounded-xl hover:bg-white/10 transition-all flex items-center gap-2"
+            onClick={fetchFilters}
+            disabled={isLoading}
+            className="px-4 py-2.5 bg-white/5 border border-white/10 text-foreground font-bold rounded-xl hover:bg-white/10 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <RotateCcw className="w-4 h-4" />
-            Load Defaults
+            <RotateCcw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+            Refresh
           </button>
           <button 
-            onClick={() => {
-              setEditingFilter(null);
-              setNewFilter({ name: '', description: '', cssFilter: '', enabled: true });
-              setIsModalOpen(true);
-            }}
-            className="px-4 py-2 bg-primary text-white font-bold rounded-xl shadow-[0_4px_15px_rgba(255,184,0,0.4)] hover:scale-[1.02] transition-all flex items-center gap-2"
+            onClick={() => handleOpenModal(null)}
+            className="px-5 py-2.5 bg-primary text-[#10172A] font-black uppercase tracking-wider text-xs rounded-xl shadow-[0_4px_15px_rgba(255,184,0,0.4)] hover:scale-[1.02] transition-all flex items-center gap-2 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 stroke-[3]" />
             New Filter
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <AnimatePresence mode="popLayout">
-          {filters.map((filter) => (
-            <motion.div
-              key={filter.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className={cn(
-                "group glass-panel p-5 space-y-4 border transition-all duration-300",
-                filter.enabled ? "border-white/10 hover:border-primary/30" : "border-white/5 opacity-60 grayscale-[50%]"
-              )}
-            >
-              <div className="aspect-video w-full rounded-xl overflow-hidden bg-black/40 relative">
-                <img 
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=300&fit=crop" 
-                  alt="Preview"
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
-                  style={{ filter: filter.cssFilter }}
-                />
-                {!filter.enabled && (
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center font-bold text-white text-xs uppercase tracking-widest">
-                    Disabled
-                  </div>
-                )}
-                {filter.isDefault && (
-                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-accent text-accent-foreground text-[8px] font-extrabold uppercase tracking-widest rounded-full shadow-[0_2px_10px_rgba(255,210,160,0.3)]">
-                    Default
-                  </div>
-                )}
-              </div>
+      {/* Filter Grid / Loading state */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-black/20 border border-white/10 rounded-3xl">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+          <p className="text-sm font-bold text-muted uppercase tracking-wider">Loading Filters...</p>
+        </div>
+      ) : filters.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-black/20 border border-white/10 rounded-3xl text-center px-4">
+          <AlertCircle className="w-12 h-12 text-muted mb-4 opacity-60" />
+          <h3 className="text-lg font-bold text-foreground">No Filters Found</h3>
+          <p className="text-xs text-muted max-w-md mt-1 mb-6">Create your first photo filter to customize the look and feel of captured photobooth pictures.</p>
+          <button 
+            onClick={() => handleOpenModal(null)}
+            className="px-6 py-3 bg-primary text-[#10172A] font-black uppercase tracking-wider text-xs rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            Create First Filter
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filters.map((filter) => {
+              const active = getFilterActive(filter);
+              const cssVal = getFilterCss(filter);
+              const type = getFilterType(filter);
+              const previewUrl = getFilterPreviewUrl(filter);
 
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-foreground text-lg">{filter.name}</h3>
-                  {filter.isDefault ? (
-                    <div className="w-10 h-5 flex items-center px-1 rounded-full bg-primary/20 border border-primary/30 opacity-50 cursor-not-allowed">
-                       <div className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgba(255,184,0,0.4)] translate-x-5" />
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => toggleFilter(filter.id)}
-                      className={cn(
-                        "w-10 h-5 flex items-center px-1 rounded-full transition-all duration-300",
-                        filter.enabled ? "bg-primary shadow-[0_0_15px_rgba(255,184,0,0.4)]" : "bg-foreground/10 border border-primary/20"
-                      )}
-                    >
-                      <motion.div 
-                        animate={{ x: filter.enabled ? 20 : 0 }}
-                        className={cn("w-3 h-3 rounded-full shadow-sm", filter.enabled ? "bg-white" : "bg-muted")}
-                      />
-                    </button>
+              return (
+                <motion.div
+                  key={filter.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className={cn(
+                    "group glass-panel p-5 space-y-4 border transition-all duration-300 rounded-3xl flex flex-col justify-between",
+                    active ? "border-white/10 hover:border-primary/30" : "border-white/5 opacity-60 grayscale-[40%]"
                   )}
-                </div>
-                <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-2 h-8">{filter.description}</p>
-                <code className="block mt-3 p-2 bg-foreground/5 rounded-lg text-[10px] text-primary dark:text-primary/80 font-mono truncate border border-primary/10">
-                  {filter.cssFilter}
-                </code>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <button 
-                  onClick={() => startEdit(filter)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 text-xs font-bold rounded-lg transition-all"
                 >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  Edit
-                </button>
-                {!filter.isDefault && (
-                  <button 
-                    onClick={() => deleteFilter(filter.id)}
-                    className="p-2 bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+                  <div className="space-y-4">
+                    {/* Thumbnail Card */}
+                    <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black/40 relative border border-white/5 flex items-center justify-center">
+                      <img 
+                        src={previewUrl || SAMPLE_PHOTO} 
+                        alt={filter.name || 'Filter Preview'}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
+                        style={type === 'color' && !previewUrl ? { filter: cssVal } : undefined}
+                      />
 
-      {/* Filter Modal */}
+                      {!active && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center font-black text-white text-[10px] uppercase tracking-[0.2em]">
+                          Disabled
+                        </div>
+                      )}
+
+                      {/* Type Badge */}
+                      <div className="absolute top-2 left-2 px-2.5 py-1 bg-black/70 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest rounded-lg border border-white/10 flex items-center gap-1 shadow-md">
+                        {type === 'color' && <Sparkles className="w-3 h-3 text-primary" />}
+                        {type === 'overlay' && <Layers className="w-3 h-3 text-emerald-400" />}
+                        {type === 'sticker' && <ImageIcon className="w-3 h-3 text-sky-400" />}
+                        {type}
+                      </div>
+                    </div>
+
+                    {/* Metadata & Toggle */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-black text-foreground text-lg truncate uppercase tracking-tight">{filter.name}</h3>
+                        <button 
+                          type="button"
+                          onClick={() => toggleFilterActive(filter)}
+                          className={cn(
+                            "w-10 h-5 flex items-center px-1 rounded-full transition-all duration-300 cursor-pointer flex-shrink-0",
+                            active ? "bg-primary shadow-[0_0_15px_rgba(255,184,0,0.4)]" : "bg-foreground/10 border border-white/20"
+                          )}
+                          title={active ? 'Click to disable' : 'Click to enable'}
+                        >
+                          <motion.div 
+                            animate={{ x: active ? 20 : 0 }}
+                            className={cn("w-3 h-3 rounded-full shadow-sm", active ? "bg-[#10172A]" : "bg-muted")}
+                          />
+                        </button>
+                      </div>
+
+                      {filter.description && (
+                        <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-2 h-8">{filter.description}</p>
+                      )}
+
+                      <div className="mt-3 p-2.5 bg-black/40 rounded-xl text-[10px] text-primary font-mono border border-white/5 flex flex-col gap-1">
+                        <span className="text-[9px] uppercase font-black text-muted tracking-wider">CSS / Value:</span>
+                        <span className="truncate block font-bold">{cssVal}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    <button 
+                      type="button"
+                      onClick={() => handleOpenModal(filter)}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/5 border border-white/10 hover:border-primary/40 hover:bg-white/10 text-xs font-black uppercase tracking-wider text-foreground rounded-xl transition-all cursor-pointer"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-primary" />
+                      Edit
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => deleteFilter(filter.id, filter.name)}
+                      className="p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all cursor-pointer"
+                      title="Delete Filter"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Add / Edit Filter Modal with Fixed Header, Scrollable Body, Fixed Footer */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg glass-panel p-8 border-primary/30 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-lg bg-[#1E293B] border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.7)] rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="absolute top-6 right-6 text-muted hover:text-foreground transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 bg-primary/10 rounded-xl">
-                  {editingFilter ? <Edit2 className="w-6 h-6 text-primary" /> : <Plus className="w-6 h-6 text-primary" />}
+              {/* Fixed Header */}
+              <div className="flex-shrink-0 flex items-center justify-between p-6 md:p-8 border-b border-white/10 bg-[#1E293B] z-10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary/20 rounded-2xl border border-primary/30">
+                    {editingFilter ? <Edit2 className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight text-foreground">
+                      {editingFilter ? 'Edit Photo Filter' : 'New Photo Filter'}
+                    </h2>
+                    <p className="text-[11px] font-bold text-muted mt-0.5">Configure filter settings and preview rendering.</p>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-bold">{editingFilter ? 'Edit Filter' : 'New Filter'}</h2>
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                  className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-muted hover:text-foreground transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted uppercase tracking-widest text-[10px]">Filter Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Cinema" 
-                    value={newFilter.name}
-                    onChange={(e) => setNewFilter({...newFilter, name: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/40 transition-all"
-                  />
+              {/* Scrollable Form Content */}
+              <form onSubmit={handleSaveFilter} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
+                {/* Filter Name & Active Toggle */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">Filter Name *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g. Cinema B&W" 
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-black text-foreground outline-none focus:border-primary/50 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">Status</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, is_active: !formData.is_active})}
+                      className={cn(
+                        "w-full py-3.5 px-4 rounded-2xl border font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer",
+                        formData.is_active 
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" 
+                          : "bg-white/5 border-white/10 text-muted"
+                      )}
+                    >
+                      <div className={cn("w-2 h-2 rounded-full", formData.is_active ? "bg-emerald-400 animate-pulse" : "bg-muted")} />
+                      {formData.is_active ? 'Active' : 'Inactive'}
+                    </button>
+                  </div>
                 </div>
 
+                {/* Filter Type Dropdown */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted uppercase tracking-widest text-[10px]">Description</label>
-                  <textarea 
-                    placeholder="Short description of the filter effect..." 
-                    value={newFilter.description}
-                    onChange={(e) => setNewFilter({...newFilter, description: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/40 min-h-[80px] resize-none"
-                  />
+                  <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">Filter Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({...formData, type: e.target.value as 'color' | 'overlay' | 'sticker'})}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-xs font-black uppercase tracking-wider text-foreground outline-none focus:border-primary/50"
+                  >
+                    <option value="color" className="bg-[#1E293B]">Color / CSS Filter (Standard Grading)</option>
+                    <option value="overlay" className="bg-[#1E293B]">Overlay (PNG Frame/Texture Layer)</option>
+                    <option value="sticker" className="bg-[#1E293B]">Sticker (Graphic Overlay Asset)</option>
+                  </select>
                 </div>
 
+                {/* CSS Filter Value (For Color Type) */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-muted uppercase tracking-widest text-[10px]">CSS Filter Value</label>
+                    <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">
+                      {formData.type === 'color' ? 'CSS Filter Value *' : 'CSS Filter Value (Optional)'}
+                    </label>
                     <button 
-                      className="text-[10px] text-primary hover:underline font-bold"
-                      onClick={() => setNewFilter({...newFilter, cssFilter: 'grayscale(100%) brightness(120%)'})}
+                      type="button"
+                      className="text-[10px] text-primary hover:underline font-black uppercase tracking-wider cursor-pointer"
+                      onClick={() => setFormData({...formData, css_filter: 'grayscale(100%) contrast(120%) brightness(105%)'})}
                     >
-                      Use Example
+                      Preset Example
                     </button>
                   </div>
                   <input 
                     type="text" 
                     placeholder="e.g. grayscale(100%) contrast(1.1)" 
-                    value={newFilter.cssFilter}
-                    onChange={(e) => setNewFilter({...newFilter, cssFilter: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-primary/40 font-mono text-sm"
+                    value={formData.css_filter}
+                    onChange={(e) => setFormData({...formData, css_filter: e.target.value})}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-xs font-mono text-foreground outline-none focus:border-primary/50 transition-all"
                   />
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {['grayscale(100%)', 'sepia(80%)', 'brightness(120%) contrast(105%)', 'saturate(140%) contrast(110%)'].map((ex) => (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {['none', 'grayscale(100%)', 'sepia(80%)', 'brightness(120%) contrast(105%)', 'saturate(140%) contrast(110%)', 'hue-rotate(180deg)'].map((ex) => (
                       <button 
                         key={ex}
-                        onClick={() => setNewFilter({...newFilter, cssFilter: ex})}
-                        className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] text-muted hover:text-primary hover:border-primary/30 transition-all font-mono"
+                        type="button"
+                        onClick={() => setFormData({...formData, css_filter: ex})}
+                        className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-xl text-[9px] text-muted hover:text-primary hover:border-primary/30 transition-all font-mono cursor-pointer"
                       >
                         {ex}
                       </button>
@@ -312,33 +491,81 @@ export const PhotoFilters: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex flex-col items-center gap-4">
-                  <div className="text-[10px] font-bold text-muted uppercase tracking-widest">Live Preview</div>
-                  <div className="w-32 h-32 rounded-xl overflow-hidden border border-primary/20">
-                    <img 
-                      src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop" 
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                      style={{ filter: newFilter.cssFilter }}
+                {/* Preview URL / Image Asset Path */}
+                {(formData.type === 'overlay' || formData.type === 'sticker' || formData.preview_url) && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">
+                      {formData.type !== 'color' ? 'Image / Overlay Asset URL or Upload Path *' : 'Optional Preview Image URL'}
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. /uploads/filter_overlay.png or https://cdn.unismiles.com/asset.png" 
+                      value={formData.preview_url}
+                      onChange={(e) => setFormData({...formData, preview_url: e.target.value})}
+                      className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-xs font-mono text-foreground outline-none focus:border-primary/50 transition-all"
                     />
+                    <p className="text-[10px] font-bold text-muted ml-1">
+                      If using relative backend paths like <code className="text-primary font-mono">/uploads/...</code>, base URL <code className="text-primary font-mono">http://localhost:8000</code> is automatically prepended.
+                    </p>
                   </div>
+                )}
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted uppercase tracking-widest ml-1">Description (Optional)</label>
+                  <textarea 
+                    placeholder="Short summary of what this filter effect achieves..." 
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3 text-xs text-foreground outline-none focus:border-primary/50 min-h-[75px] resize-none"
+                  />
                 </div>
 
-                <div className="flex gap-4 pt-4">
-                  <button 
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-3 bg-white/5 border border-white/10 text-foreground font-bold rounded-xl hover:bg-white/10 transition-all font-display"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleSaveFilter}
-                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-[0_4px_15px_rgba(255,184,0,0.4)] hover:scale-[1.02] transition-all font-display flex items-center justify-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    Save Filter
-                  </button>
+                {/* Live Inspection Preview Box */}
+                <div className="p-5 rounded-3xl bg-black/40 border border-white/10 flex flex-col items-center gap-3">
+                  <div className="text-[10px] font-black text-muted uppercase tracking-widest flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-primary" /> Live Rendering Preview
+                  </div>
+                  <div className="w-44 h-32 rounded-2xl overflow-hidden border border-white/15 bg-black/50 relative flex items-center justify-center shadow-lg">
+                    <img 
+                      src={resolveImageUrl(formData.preview_url) || SAMPLE_PHOTO} 
+                      alt="Filter Preview"
+                      className="w-full h-full object-cover"
+                      style={formData.type === 'color' && !formData.preview_url ? { filter: formData.css_filter } : undefined}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono text-primary font-bold">{formData.css_filter}</span>
                 </div>
+              </form>
+
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 p-6 md:p-8 border-t border-white/10 bg-[#1E293B] flex justify-end gap-3 z-10">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                  className="px-6 py-4 bg-white/5 hover:bg-white/10 text-foreground rounded-2xl font-black uppercase tracking-wider text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleSaveFilter}
+                  disabled={isSubmitting}
+                  className="btn-primary flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-black uppercase tracking-wider text-xs shadow-xl shadow-primary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      <span>{editingFilter ? 'Update Filter' : 'Save Filter'}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>

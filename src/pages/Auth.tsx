@@ -5,11 +5,14 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../components/AuthProvider';
 import api from '../lib/api';
 
+const logoImg = '/src/logo.png';
+
 export const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('Admin Mitra');
   const [partnerName, setPartnerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,26 +32,23 @@ export const Auth: React.FC = () => {
           throw new Error("Invalid response from login server.");
         }
         login(data.token, data.user);
-        window.location.reload();
       } else {
         const regResponse = await api.post('/api/auth/register', { 
           name, 
           email, 
           password, 
-          role: "Admin Mitra",
+          role,
           partner_name: partnerName || 'Uni-Smiles HQ'
         });
         
         if (regResponse.data && regResponse.data.token) {
           login(regResponse.data.token, regResponse.data.user || regResponse.data.data);
-          window.location.reload();
         } else {
           try {
             const loginRes = await api.post('/api/auth/login', { email, password });
             const loginData = loginRes.data;
             if (loginData && loginData.token) {
               login(loginData.token, loginData.user);
-              window.location.reload();
               return;
             }
           } catch (autoErr) {
@@ -80,14 +80,13 @@ export const Auth: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
+          className="flex items-center"
         >
-          <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-black/20 rotate-12">
-            <Camera className="text-[#10172A] w-7 h-7 -rotate-12" />
-          </div>
-          <span className="text-2xl font-black tracking-tighter text-foreground uppercase">
-            Uni<span className="text-primary italic">Smiles</span>
-          </span>
+          <img 
+            src={logoImg} 
+            alt="Uni-Smiles Logo" 
+            className="h-28 w-auto object-contain" 
+          />
         </motion.div>
 
         <motion.div
@@ -146,6 +145,23 @@ export const Auth: React.FC = () => {
                         placeholder="Enter your name"
                         className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground"
                       />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ml-1">
+                      Role
+                    </label>
+                    <div className="relative group">
+                      <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground appearance-none cursor-pointer"
+                      >
+                        <option value="Admin Mitra" className="bg-[#1E293B]">Admin Mitra</option>
+                        <option value="Super Admin" className="bg-[#1E293B]">Super Admin</option>
+                        <option value="Viewer" className="bg-[#1E293B]">Viewer</option>
+                      </select>
                     </div>
                   </div>
 

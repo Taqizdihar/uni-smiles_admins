@@ -28,7 +28,9 @@ import { SettingsPage } from './pages/Settings';
 import { UserManager } from './pages/UserManager';
 import { Auth } from './pages/Auth';
 import { Stickers } from './pages/Stickers';
+import { PhotoFilters } from './pages/PhotoFilters';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { cn } from './lib/utils';
 
 import { AuthProvider, useAuth, ErrorBoundary } from './components/AuthProvider';
@@ -67,12 +69,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles: string
 function AppContent() {
   const { user, loading, logout } = useAuth();
   const location = useLocation();
-  const displayName = user?.displayName || user?.name || 'Admin';
-  const avatarSeed = user?.uid || user?.id || 'admin';
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = React.useState(false);
+  const displayName = user?.name || user?.displayName || 'User';
+  const avatarSeed = user?.uid || user?.id || 'user';
 
   const handleLogout = () => {
     logout();
-    window.location.reload();
   };
 
   if (loading) {
@@ -119,7 +121,7 @@ function AppContent() {
               <div className="text-right">
                 <p className="text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">{displayName}</p>
                 <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary/60">
-                  {user?.role || 'Admin Mitra'}
+                  {user?.role || 'No Role'}
                 </p>
               </div>
               <div className="relative group/avatar">
@@ -128,8 +130,8 @@ function AppContent() {
                 </button>
                 <div className="absolute right-0 top-full mt-3 w-48 glass-panel p-2 hidden group-hover/avatar:block animate-in fade-in slide-in-from-top-2 duration-200 border-primary/30 shadow-2xl">
                   <button 
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    onClick={() => setIsLogoutModalOpen(true)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
                     Logout
@@ -140,17 +142,58 @@ function AppContent() {
           </div>
         </header>
 
+        {/* Header Logout Confirmation Modal */}
+        {createPortal(
+          isLogoutModalOpen && (
+            <div 
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+              onClick={() => setIsLogoutModalOpen(false)}
+            >
+              <div 
+                className="bg-[#1E293B] border border-white/10 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shadow-lg shadow-red-500/10">
+                    <LogOut className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Confirm Logout</h3>
+                    <p className="text-xs text-muted font-bold mt-2 leading-relaxed">
+                      Are you sure you want to logout? You will need to sign in again to access the Uni-Smiles dashboard.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 w-full pt-4">
+                    <button 
+                      onClick={() => setIsLogoutModalOpen(false)}
+                      className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-foreground rounded-2xl font-black uppercase tracking-wider text-xs transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleLogout}
+                      className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black uppercase tracking-wider text-xs shadow-lg shadow-red-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ),
+          document.body
+        )}
+
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
           <Routes>
-            <Route path="/" element={
-              user?.role === 'Admin Mitra' ? <Navigate to="/templates" replace /> : <Navigate to="/dashboard" replace />
-            } />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             
             {/* Super Admin & Admin Mitra Shared Routes */}
-            <Route path="/templates" element={
+            <Route path="/dashboard" element={
               <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
-                <TemplateManagement />
+                <Dashboard onNavigate={() => {}} />
               </ProtectedRoute>
             } />
             <Route path="/kiosks" element={
@@ -158,28 +201,36 @@ function AppContent() {
                 <KioskManager />
               </ProtectedRoute>
             } />
-
-            {/* Admin Mitra Exclusive Routes */}
-            <Route path="/templates/stickers" element={
-              <ProtectedRoute allowedRoles={['Admin Mitra']}>
-                <Stickers />
+            <Route path="/sessions" element={
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
+                <SessionRepository />
               </ProtectedRoute>
             } />
-            <Route path="/sessions" element={
-              <ProtectedRoute allowedRoles={['Admin Mitra']}>
-                <SessionRepository />
+            <Route path="/storyboard" element={
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
+                <Storyboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/ai-generator" element={
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
+                <AIGenerator />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
+                <Analytics />
               </ProtectedRoute>
             } />
 
             {/* Super Admin Exclusive Routes */}
-            <Route path="/dashboard" element={
+            <Route path="/templates" element={
               <ProtectedRoute allowedRoles={['Super Admin']}>
-                <Dashboard onNavigate={() => {}} />
+                <TemplateManagement />
               </ProtectedRoute>
             } />
-            <Route path="/analytics" element={
+            <Route path="/filters" element={
               <ProtectedRoute allowedRoles={['Super Admin']}>
-                <Analytics />
+                <PhotoFilters />
               </ProtectedRoute>
             } />
             <Route path="/users" element={
@@ -194,9 +245,7 @@ function AppContent() {
             } />
 
             {/* Catch-all fallback */}
-            <Route path="*" element={
-              user?.role === 'Admin Mitra' ? <Navigate to="/templates" replace /> : <Navigate to="/dashboard" replace />
-            } />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
       </main>

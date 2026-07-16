@@ -162,7 +162,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       <header className="mb-8 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-5xl font-black tracking-tighter uppercase leading-[0.8] mb-2 text-primary">Dashboard</h1>
-          <p className="text-muted text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Operations Intelligence — {user?.displayName || user?.name || 'Admin'}</p>
+          <p className="text-muted text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Operations Intelligence — {user?.name || user?.displayName || 'User'} ({user?.role || 'No Role'})</p>
         </div>
       </header>
 

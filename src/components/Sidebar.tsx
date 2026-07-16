@@ -16,9 +16,12 @@ import {
   Zap
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthProvider';
+
+const logoImg = '/src/logo.png';
 
 interface SidebarProps {
   role?: string;
@@ -26,17 +29,20 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
 
   const menuItems = [
-    { id: 'dashboard', path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Super Admin'] },
-    { id: 'templates', path: '/templates', icon: ImageIcon, label: 'Frames', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'stickers', path: '/templates/stickers', icon: Smile, label: 'Stickers', roles: ['Admin Mitra'] },
-    { id: 'sessions', path: '/sessions', icon: History, label: 'Sessions', roles: ['Admin Mitra'] },
+    { id: 'dashboard', path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Super Admin', 'Admin Mitra'] },
     { id: 'kiosks', path: '/kiosks', icon: Monitor, label: 'Kiosks', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['Super Admin'] },
+    { id: 'sessions', path: '/sessions', icon: History, label: 'Sessions', roles: ['Super Admin', 'Admin Mitra'] },
+    { id: 'storyboard', path: '/storyboard', icon: Camera, label: 'Storyboard', roles: ['Super Admin', 'Admin Mitra'] },
+    { id: 'ai-generator', path: '/ai-generator', icon: Sparkles, label: 'AI Gen', roles: ['Super Admin', 'Admin Mitra'] },
+    { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['Super Admin', 'Admin Mitra'] },
+    { id: 'templates', path: '/templates', icon: ImageIcon, label: 'Templates', roles: ['Super Admin'] },
+    { id: 'filters', path: '/filters', icon: Zap, label: 'Filters', roles: ['Super Admin'] },
     { id: 'users', path: '/users', icon: Users, label: 'Users', roles: ['Super Admin'] },
     { id: 'settings', path: '/settings', icon: Settings, label: 'Settings', roles: ['Super Admin'] },
   ];
@@ -48,7 +54,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
   const userRole = user?.role || 'Admin Mitra';
   const filteredItems = menuItems.filter(item => item.roles.includes(userRole));
-  const activeId = menuItems.find(item => location.pathname.startsWith(item.path))?.id || 'dashboard';
+  const activeId = [...menuItems]
+    .sort((a, b) => b.path.length - a.path.length)
+    .find(item => location.pathname.startsWith(item.path))?.id || 'dashboard';
 
   return (
     <aside 
@@ -58,14 +66,19 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         collapsed ? "w-20" : "w-64"
       )}
     >
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(210,199,184,0.3)]">
-          <Camera className="text-[#10172A] w-6 h-6" />
-        </div>
-        {!collapsed && (
-          <span className="font-display font-black text-xl tracking-tighter text-foreground uppercase">
-            Uni<span className="text-primary italic">Smiles</span>
-          </span>
+      <div className={cn("p-6 flex items-center", collapsed ? "justify-center p-2" : "gap-3")}>
+        {collapsed ? (
+          <img 
+            src={logoImg} 
+            alt="Logo" 
+            className="w-20 h-20 object-contain" 
+          />
+        ) : (
+          <img 
+            src={logoImg} 
+            alt="Uni-Smiles Logo" 
+            className="h-20 w-auto object-contain max-w-[220px]" 
+          />
         )}
       </div>
 
@@ -111,13 +124,13 @@ export const Sidebar: React.FC<SidebarProps> = () => {
              <div className="w-full h-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-xs">
                {user?.name
                  ? user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
-                 : 'SA'}
+                 : 'U'}
              </div>
           </div>
           <div className="flex-1 overflow-hidden">
-             <p className="text-[10px] font-black text-foreground uppercase tracking-tight truncate">{user?.name || 'Studio Admin'}</p>
+             <p className="text-[10px] font-black text-foreground uppercase tracking-tight truncate">{user?.name || 'User'}</p>
              <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest truncate">
-               {user?.role || 'Admin Mitra'}
+               {user?.role || 'No Role'}
              </p>
           </div>
         </div>
@@ -132,14 +145,64 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           {!collapsed && <span className="font-bold text-sm">Minimize</span>}
         </button>
         <button 
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-400/80 hover:text-red-400 transition-all rounded-xl hover:bg-red-500/10 group"
+          onClick={() => setIsLogoutModalOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 text-red-400/80 hover:text-red-400 transition-all rounded-xl hover:bg-red-500/10 group cursor-pointer"
           title="Logout"
         >
           <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           {!collapsed && <span className="font-bold text-sm">Logout</span>}
         </button>
       </div>
+
+      {createPortal(
+        <AnimatePresence>
+          {isLogoutModalOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+              onClick={() => setIsLogoutModalOpen(false)}
+            >
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-[#1E293B] border border-white/10 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shadow-lg shadow-red-500/10">
+                    <LogOut className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight text-foreground">Confirm Logout</h3>
+                    <p className="text-xs text-muted font-bold mt-2 leading-relaxed">
+                      Are you sure you want to logout? You will need to sign in again to access the Uni-Smiles dashboard.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 w-full pt-4">
+                    <button 
+                      onClick={() => setIsLogoutModalOpen(false)}
+                      className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-foreground rounded-2xl font-black uppercase tracking-wider text-xs transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleLogout}
+                      className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black uppercase tracking-wider text-xs shadow-lg shadow-red-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </aside>
   );
 };
