@@ -1,94 +1,107 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Monitor, 
   RefreshCcw, 
   Settings, 
-  Activity, 
-  Zap, 
-  HardDrive, 
-  Droplet,
-  Power,
-  MapPin,
-  Plus,
-  Smile,
-  CheckCircle2,
-  X,
-  Trash2
+  MapPin, 
+  Plus, 
+  CheckCircle2, 
+  X, 
+  Trash2, 
+  Key, 
+  Copy, 
+  Check, 
+  Zap
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useKiosks } from '../KioskContext';
 import { toast } from 'sonner';
 import { KioskConfigPage } from './KioskConfigPage';
-
 import { useAuth } from '../components/AuthProvider';
 
 export const KioskManager: React.FC = () => {
   const { role } = useAuth();
-  const { kiosks, addKiosk, updateKiosk, restartKiosk, deleteKiosk } = useKiosks();
+  const { kiosks, addKiosk, updateKiosk, restartKiosk, deleteKiosk, fetchKiosks, loading } = useKiosks();
   const [isAdding, setIsAdding] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const displayedKiosks = role === 'admin' 
-    ? kiosks 
-    : kiosks.filter(k => k.name === 'Kios-K GIAT');
+  // Display all real kiosks fetched from the backend
+  const displayedKiosks = kiosks;
   const [isRegistering, setIsRegistering] = useState(false);
-  const [newKiosk, setNewKiosk] = useState({ name: '', location: '' });
+  const [newKiosk, setNewKiosk] = useState({ id: '', name: '', location: '' });
   
+  // API Key Modal State
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [generatedApiKey, setGeneratedApiKey] = useState('');
+  const [copied, setCopied] = useState(false);
+
   // Full Page Config state
   const [isConfigView, setIsConfigView] = useState(false);
   const [selectedKiosk, setSelectedKiosk] = useState<any>(null);
-  
-  // Simulate dynamic status changes for dummy kiosks
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const randomKiosk = kiosks[Math.floor(Math.random() * kiosks.length)];
-      if (randomKiosk && randomKiosk.status !== 'restarting') {
-        const statuses: ('online' | 'idle' | 'offline')[] = ['online', 'idle', 'offline'];
-        const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        updateKiosk(randomKiosk.id, { status: newStatus });
-      }
-    }, 15000); // Every 15 seconds
-    return () => clearInterval(interval);
-  }, [kiosks, updateKiosk]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchKiosks();
+      toast.success("Kiosk list refreshed");
+    } catch (error) {
+      console.error("Refresh error:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleConfirmRegistration = async () => {
-    if (!newKiosk.name || !newKiosk.location) {
-      toast.error("Please fill in all fields");
+    if (!newKiosk.name.trim() || !newKiosk.location.trim()) {
+      toast.error("Please fill in both Kiosk Name and Location");
       return;
     }
 
     setIsRegistering(true);
+    try {
+      // If Kiosk ID is left empty, auto-generate a secure identifier for the backend requirement
+      const kioskPayload = {
+        id: newKiosk.id.trim() || `KSK-${Date.now().toString().slice(-6)}`,
+        name: newKiosk.name.trim(),
+        location: newKiosk.location.trim()
+      };
 
-    // Simulate registration with 2-second timeout
-    setTimeout(async () => {
-      try {
-        await addKiosk(newKiosk);
-        
-        setIsRegistering(false);
-        setIsAdding(false);
-        setNewKiosk({ name: '', location: '' });
+      const apiKey = await addKiosk(kioskPayload);
+      
+      setIsRegistering(false);
+      setIsAdding(false);
+      setNewKiosk({ id: '', name: '', location: '' });
 
+      if (apiKey) {
+        setGeneratedApiKey(apiKey);
+        setShowApiKeyModal(true);
+      } else {
         toast.success("Kiosk berhasil didaftarkan", {
           icon: <CheckCircle2 className="w-5 h-5 text-green-400" />,
-          duration: 5000,
-          position: 'top-center',
-          style: {
-            background: 'rgba(16, 185, 129, 0.15)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(16, 185, 129, 0.2)',
-            color: '#fff',
-            borderRadius: '9999px',
-            padding: '12px 24px',
-            fontWeight: '600',
-            fontSize: '14px',
-            boxShadow: '0 10px 30px -10px rgba(16, 185, 129, 0.3)'
-          }
+          duration: 4000,
+          position: 'top-center'
         });
-      } catch (error) {
-        console.error("Registration error:", error);
-        setIsRegistering(false);
       }
-    }, 2000);
+    } catch (error) {
+      console.error("Registration error:", error);
+      setIsRegistering(false);
+    }
+  };
+
+  const handleCopyApiKey = () => {
+    if (generatedApiKey) {
+      navigator.clipboard.writeText(generatedApiKey);
+      setCopied(true);
+      toast.success("API Key copied to clipboard!");
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
+
+  const handleCloseApiKeyModal = () => {
+    setShowApiKeyModal(false);
+    setGeneratedApiKey('');
+    setCopied(false);
   };
 
   const handleRestart = async (id: string, name: string) => {
@@ -117,11 +130,73 @@ export const KioskManager: React.FC = () => {
     setIsConfigView(true);
   };
 
-  // Find the selected kiosk in the latest list to ensure data is fresh
   const currentSelectedKiosk = selectedKiosk ? kiosks.find(k => k.id === selectedKiosk.id) : null;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 relative">
+      {/* API Key Modal - Displayed when new kiosk is generated */}
+      <AnimatePresence>
+        {showApiKeyModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#10172A]/85 backdrop-blur-xl p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#1E293B] border border-amber-500/40 rounded-[2.5rem] p-8 md:p-10 max-w-xl w-full shadow-[0_20px_60px_-15px_rgba(245,158,11,0.25)] relative overflow-hidden"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10 shrink-0">
+                  <Key className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black uppercase tracking-tight text-foreground">API Key Generated</h3>
+                  <p className="text-xs text-muted font-bold tracking-wider uppercase mt-1">Kiosk Hardware Authentication</p>
+                </div>
+              </div>
+
+              {/* Exact required warning */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 my-6 flex items-start gap-3.5 shadow-inner">
+                <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400 mt-0.5 shrink-0">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <p className="text-amber-200 text-xs md:text-sm font-bold leading-relaxed">
+                  Please copy this API Key and save it in the Kiosk's .env file. This key will only be shown once for security reasons.
+                </p>
+              </div>
+
+              {/* API Key Display & Copy Box */}
+              <div className="space-y-2 mb-8">
+                <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Kiosk API Key (x-api-key)</label>
+                <div className="bg-black/50 border border-white/10 rounded-2xl p-4 flex items-center justify-between gap-4 font-mono text-xs md:text-sm text-primary select-all overflow-x-auto">
+                  <span className="font-bold tracking-wide break-all">{generatedApiKey}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={handleCopyApiKey}
+                  className="flex-1 py-4 bg-primary text-[#10172A] rounded-2xl font-black uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-xl shadow-primary/10 flex items-center justify-center gap-2"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copied to Clipboard!' : 'Copy API Key'}
+                </button>
+                <button 
+                  onClick={handleCloseApiKeyModal}
+                  className="px-8 py-4 bg-white/10 hover:bg-white/15 text-foreground rounded-2xl font-black uppercase tracking-widest text-xs transition-all"
+                >
+                  I Have Saved It
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {isConfigView && currentSelectedKiosk ? (
           <motion.div
@@ -144,12 +219,21 @@ export const KioskManager: React.FC = () => {
             exit={{ opacity: 0, x: 20 }}
             className="space-y-8"
           >
-            <header className="flex justify-between items-end">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
               <div>
                 <h1 className="text-4xl font-black tracking-tighter uppercase">Kiosk Manager</h1>
                 <p className="text-muted mt-1 font-bold">Monitor and control your remote photo booth stations.</p>
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || loading}
+                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-muted hover:text-foreground rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-2 disabled:opacity-50"
+                  title="Refresh Kiosks"
+                >
+                  <RefreshCcw className={cn("w-4 h-4", (isRefreshing || loading) && "animate-spin")} />
+                  Refresh
+                </button>
                 {role === 'admin' && (
                   <button 
                     onClick={() => setIsAdding(true)}
@@ -183,7 +267,7 @@ export const KioskManager: React.FC = () => {
                             transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                           />
                         </div>
-                        <p className="text-xl font-black uppercase tracking-widest text-[#F1F5F9]">Registering...</p>
+                        <p className="text-xl font-black uppercase tracking-widest text-[#F1F5F9]">Registering Kiosk...</p>
                       </div>
                     </motion.div>
                   )}
@@ -199,20 +283,29 @@ export const KioskManager: React.FC = () => {
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Kiosk Name</label>
+                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Kiosk ID (Optional)</label>
                     <input 
-                      placeholder="e.g. Kiosk-01"
+                      placeholder="e.g. KSK-001"
+                      className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-primary/50 transition-all text-foreground font-bold tracking-tight"
+                      value={newKiosk.id}
+                      onChange={e => setNewKiosk({...newKiosk, id: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Kiosk Name <span className="text-primary">*</span></label>
+                    <input 
+                      placeholder="e.g. PVJ Mall Concourse"
                       className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-primary/50 transition-all text-foreground font-bold tracking-tight"
                       value={newKiosk.name}
                       onChange={e => setNewKiosk({...newKiosk, name: e.target.value})}
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Location</label>
+                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Location <span className="text-primary">*</span></label>
                     <input 
-                      placeholder="e.g. Grand Indonesia Mall"
+                      placeholder="e.g. Paris Van Java, Bandung"
                       className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-primary/50 transition-all text-foreground font-bold tracking-tight"
                       value={newKiosk.location}
                       onChange={e => setNewKiosk({...newKiosk, location: e.target.value})}
@@ -222,7 +315,7 @@ export const KioskManager: React.FC = () => {
                 <div className="mt-10 flex gap-4">
                   <button 
                     onClick={handleConfirmRegistration}
-                    disabled={isRegistering}
+                    disabled={isRegistering || !newKiosk.name.trim() || !newKiosk.location.trim()}
                     className="px-10 py-4 bg-primary text-[#10172A] rounded-2xl font-black uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-xl shadow-primary/10 disabled:opacity-50"
                   >
                     Confirm Registration
@@ -237,123 +330,145 @@ export const KioskManager: React.FC = () => {
               </div>
             )}
 
+            {/* Empty State when no kiosks exist */}
+            {!loading && displayedKiosks.length === 0 && (
+              <div className="bg-[#1E293B]/60 border border-white/5 rounded-[2.5rem] p-16 text-center space-y-6 flex flex-col items-center justify-center">
+                <div className="w-20 h-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-2xl">
+                  <Monitor className="w-10 h-10" />
+                </div>
+                <div className="max-w-md space-y-2">
+                  <h3 className="text-2xl font-black uppercase tracking-tight text-foreground">No Kiosks Registered Yet</h3>
+                  <p className="text-xs text-muted font-medium leading-relaxed">
+                    There are currently no photobooth kiosks linked to this account. Click the register button above to connect your first station using the real API.
+                  </p>
+                </div>
+                {role === 'admin' && (
+                  <button 
+                    onClick={() => setIsAdding(true)}
+                    className="px-8 py-3.5 bg-primary text-[#10172A] rounded-xl font-black uppercase tracking-widest text-xs shadow-xl hover:opacity-90 transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Register First Kiosk
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Data Grid listing real kiosks fetched from the backend */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
               {displayedKiosks.map((kiosk, i) => (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
+                  transition={{ delay: i * 0.08 }}
                   key={kiosk.id} 
-                  className="bg-[#1E293B] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/30 transition-all duration-500"
+                  className="bg-[#1E293B] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/30 transition-all duration-500 flex flex-col justify-between"
                 >
-                  <div className="flex justify-between items-start mb-8">
-                    <div className="flex items-center gap-5">
-                      <div className={cn(
-                        "w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg",
-                        kiosk.status === 'online' ? "bg-emerald-500/10 text-emerald-400 shadow-emerald-500/10" : 
-                        kiosk.status === 'idle' ? "bg-amber-500/10 text-amber-400 shadow-amber-500/10" : 
-                        kiosk.status === 'restarting' ? "bg-blue-500/10 text-blue-400 shadow-blue-500/10" : "bg-red-500/10 text-red-400 shadow-red-500/10"
-                      )}>
-                        <Monitor className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-xl tracking-tight text-foreground uppercase">{kiosk.name}</h3>
-                        <div className="flex flex-col gap-1 mt-1">
-                          <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
-                            <MapPin className="w-3 h-3 text-primary/40" /> {kiosk.location}
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
-                            <Monitor className="w-3 h-3 text-primary/40" />
-                            <span className="text-foreground/90 font-black">
-                              {kiosk.config?.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
-                            </span>
-                            <span className="text-muted/60 font-bold lowercase text-[8px]">
-                              ({kiosk.config?.resolution || (kiosk.config?.orientation === 'landscape' ? '1920x1080' : '1080x1920')})
-                            </span>
+                  <div>
+                    <div className="flex justify-between items-start mb-8">
+                      <div className="flex items-center gap-5">
+                        <div className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg",
+                          kiosk.status === 'online' ? "bg-emerald-500/10 text-emerald-400 shadow-emerald-500/10" : 
+                          kiosk.status === 'idle' ? "bg-amber-500/10 text-amber-400 shadow-amber-500/10" : 
+                          kiosk.status === 'restarting' ? "bg-blue-500/10 text-blue-400 shadow-blue-500/10" : "bg-red-500/10 text-red-400 shadow-red-500/10"
+                        )}>
+                          <Monitor className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-xl tracking-tight text-foreground uppercase">{kiosk.name}</h3>
+                          <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
+                              <MapPin className="w-3 h-3 text-primary/40" /> {kiosk.location}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
+                              <Monitor className="w-3 h-3 text-primary/40" />
+                              <span className="text-foreground/90 font-black">
+                                {kiosk.config?.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+                              </span>
+                              <span className="text-muted/60 font-bold lowercase text-[8px]">
+                                ({kiosk.config?.resolution || (kiosk.config?.orientation === 'landscape' ? '1920x1080' : '1080x1920')})
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <div className={cn(
-                      "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                      kiosk.status === 'online' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
-                      kiosk.status === 'idle' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : 
-                      kiosk.status === 'restarting' ? "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse" : "bg-red-500/10 text-red-400 border-red-500/20"
-                    )}>
-                      {kiosk.status}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-6 mb-8">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
-                         Ink
-                      </div>
-                      <div className="h-2 bg-black/20 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${kiosk.health?.printerInk || 0}%` }}
-                          className={cn(
-                            "h-full rounded-full transition-all duration-1000",
-                            (kiosk.health?.printerInk || 0) > 20 ? "bg-primary" : "bg-red-500"
-                          )} 
-                        />
-                      </div>
-                      <p className="text-xs font-black text-foreground">{kiosk.health?.printerInk || 0}%</p>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
-                        Space
-                      </div>
-                      <div className="h-2 bg-black/20 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${kiosk.health?.storage || 0}%` }}
-                          className="h-full bg-blue-500 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(59,130,246,0.3)]" 
-                        />
-                      </div>
-                      <p className="text-xs font-black text-foreground">{kiosk.health?.storage || 0}%</p>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
-                         Cam
-                      </div>
                       <div className={cn(
-                        "text-xs font-black uppercase tracking-widest px-2 py-1 bg-white/5 rounded-lg inline-block",
-                        kiosk.health?.camera === 'good' ? "text-emerald-400" : "text-red-400"
+                        "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                        kiosk.status === 'online' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                        kiosk.status === 'idle' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : 
+                        kiosk.status === 'restarting' ? "bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse" : "bg-red-500/10 text-red-400 border-red-500/20"
                       )}>
-                        {kiosk.health?.camera || 'N/A'}
+                        {kiosk.status}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Active Filters list */}
-                  <div className="mb-6 pt-4 border-t border-white/5">
-                    <span className="text-[8px] font-black text-muted uppercase tracking-widest block mb-2">Active Filters</span>
-                    <div className="flex flex-wrap gap-1.5 min-h-[20px]">
-                      {kiosk.config?.filters ? (
-                        kiosk.config.filters.filter((f: any) => f.active).length > 0 ? (
+                    <div className="grid grid-cols-3 gap-6 mb-8">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
+                          Ink
+                        </div>
+                        <div className="h-2 bg-black/20 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${kiosk.health?.printerInk || 0}%` }}
+                            className={cn(
+                              "h-full rounded-full transition-all duration-1000",
+                              (kiosk.health?.printerInk || 0) > 20 ? "bg-primary" : "bg-red-500"
+                            )} 
+                          />
+                        </div>
+                        <p className="text-xs font-black text-foreground">{kiosk.health?.printerInk || 0}%</p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
+                          Space
+                        </div>
+                        <div className="h-2 bg-black/20 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${kiosk.health?.storage || 0}%` }}
+                            className="h-full bg-blue-500 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(59,130,246,0.3)]" 
+                          />
+                        </div>
+                        <p className="text-xs font-black text-foreground">{kiosk.health?.storage || 0}%</p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-[0.1em]">
+                          Cam
+                        </div>
+                        <div className={cn(
+                          "text-xs font-black uppercase tracking-widest px-2 py-1 bg-white/5 rounded-lg inline-block",
+                          kiosk.health?.camera === 'good' ? "text-emerald-400" : "text-red-400"
+                        )}>
+                          {kiosk.health?.camera || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Active Filters list */}
+                    <div className="mb-6 pt-4 border-t border-white/5">
+                      <span className="text-[8px] font-black text-muted uppercase tracking-widest block mb-2">Active Filters</span>
+                      <div className="flex flex-wrap gap-1.5 min-h-[20px]">
+                        {kiosk.config?.filters && kiosk.config.filters.filter((f: any) => f.active).length > 0 ? (
                           kiosk.config.filters.filter((f: any) => f.active).map((f: any) => (
-                            <span key={f.id} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">
+                            <span key={f.id || f.name} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">
                               {f.name}
                             </span>
                           ))
                         ) : (
-                          <span className="text-[8px] font-medium text-muted uppercase italic">No active filters</span>
-                        )
-                      ) : (
-                        <>
-                          <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Original</span>
-                          <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Black & White</span>
-                          <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Vintage</span>
-                          <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Warm Tone</span>
-                          <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Cool Tone</span>
-                        </>
-                      )}
+                          <>
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Original</span>
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Black & White</span>
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Vintage</span>
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Warm Tone</span>
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Cool Tone</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto pt-2">
                     <button 
                       onClick={() => handleOpenConfig(kiosk)}
                       className="flex-1 py-4 bg-primary text-[#10172A] rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-primary/5 hover:shadow-primary/15 flex items-center justify-center gap-2 group cursor-pointer"
@@ -364,6 +479,7 @@ export const KioskManager: React.FC = () => {
                       onClick={() => handleRestart(kiosk.id, kiosk.name)}
                       disabled={kiosk.status === 'restarting'}
                       className="px-4 py-4 bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 rounded-2xl transition-all disabled:opacity-50"
+                      title="Restart Kiosk"
                     >
                       <RefreshCcw className={cn("w-5 h-5", kiosk.status === 'restarting' && "animate-spin")} />
                     </button>

@@ -25,11 +25,13 @@ export interface Kiosk {
   };
   lastHeartbeat?: any;
   createdAt?: any;
+  user_id?: number | string;
 }
 
 interface KioskContextType {
   kiosks: Kiosk[];
-  addKiosk: (kiosk: Omit<Kiosk, 'id' | 'status' | 'health'>) => Promise<void>;
+  fetchKiosks: () => Promise<void>;
+  addKiosk: (kiosk: any) => Promise<string | undefined>;
   updateKiosk: (id: string, data: Partial<Kiosk>) => Promise<void>;
   restartKiosk: (id: string) => Promise<void>;
   deleteKiosk: (id: string) => Promise<void>;
@@ -39,13 +41,15 @@ interface KioskContextType {
 const KioskContext = createContext<KioskContextType | undefined>(undefined);
 
 export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [kiosks, setKiosks] = useState<Kiosk[]>([]);
   const [loading, setLoading] = useState(true);
 
   const mapKiosk = (item: any): Kiosk => ({
     ...item,
     id: String(item.id),
+    name: item.name || 'Unnamed Kiosk',
+    location: item.location || 'Unknown Location',
     status: item.status || 'offline',
     health: item.health || item.health_status || { printerInk: 100, storage: 0, camera: 'good' },
     config: item.config || item.config_settings || { brightness: 80, volume: 50, maintenanceMode: false },
@@ -53,64 +57,68 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     lastHeartbeat: item.lastHeartbeat || item.last_heartbeat || null
   });
 
-  // Fetch Kiosks conditional on isAuthenticated
+  const fetchKiosks = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/api/kiosks");
+      const rawData = res.data?.data || res.data;
+      setKiosks(Array.isArray(rawData) ? rawData.map(mapKiosk) : []);
+    } catch (err) {
+      console.error("Error fetching kiosks:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false);
       return;
     }
-    async function fetchKiosks() {
-      try {
-        const res = await api.get("/api/kiosks");
-        const data = res.data;
-        setKiosks(Array.isArray(data) ? data.map(mapKiosk) : []);
-      } catch (err) {
-        console.error("Error fetching kiosks:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchKiosks();
   }, [isAuthenticated]);
 
-  const addKiosk = async (kioskData: Omit<Kiosk, 'id' | 'status' | 'health'>) => {
+  const addKiosk = async (kioskData: any): Promise<string | undefined> => {
     try {
       const res = await api.post("/api/kiosks", kioskData);
-      const newKiosk = res.data.data || res.data;
+      const newKiosk = res.data?.data || res.data;
+      const apiKey = newKiosk?.api_key || res.data?.api_key || res.data?.data?.api_key;
       setKiosks(prev => [...prev, mapKiosk(newKiosk)]);
-    } catch (err) {
+      return apiKey;
+    } catch (err: any) {
       console.error("Error adding kiosk:", err);
-      toast.error("Network error or failure while adding kiosk.");
+      const msg = err.response?.data?.message || "Network error or failure while adding kiosk.";
+      toast.error(msg);
+      throw err;
     }
   };
 
   const updateKiosk = async (id: string, data: Partial<Kiosk>) => {
     try {
       const res = await api.put(`/api/kiosks/${id}`, data);
-      const updated = res.data.data || res.data;
+      const updated = res.data?.data || res.data;
       setKiosks(prev => prev.map(k => k.id === id ? mapKiosk(updated) : k));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error updating kiosk:", err);
+      const msg = err.response?.data?.message || "Failed to update kiosk.";
+      toast.error(msg);
+      throw err;
     }
   };
 
   const restartKiosk = async (id: string) => {
     try {
-      // 1. Set status to RESTARTING locally for instant UI response
       setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'restarting' } : k));
       
       await api.post(`/api/kiosks/${id}/restart`);
-      // Poll backend after 3.2s to sync online state
       setTimeout(async () => {
         try {
-          const syncRes = await api.get("/api/kiosks");
-          const synced = syncRes.data;
-          setKiosks(Array.isArray(synced) ? synced.map(mapKiosk) : []);
+          await fetchKiosks();
         } catch (syncErr) {
           console.error("Error syncing kiosks post-restart:", syncErr);
         }
       }, 3200);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error restarting kiosk:", err);
       toast.error("Failed to initiate restart sequence.");
     }
@@ -135,14 +143,16 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           fontSize: '14px'
         }
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error deleting kiosk:", err);
-      toast.error("Error koneksi saat menghapus kiosk.");
+      const msg = err.response?.data?.message || "Error koneksi saat menghapus kiosk.";
+      toast.error(msg);
+      throw err;
     }
   };
 
   return (
-    <KioskContext.Provider value={{ kiosks, addKiosk, updateKiosk, restartKiosk, deleteKiosk, loading }}>
+    <KioskContext.Provider value={{ kiosks, fetchKiosks, addKiosk, updateKiosk, restartKiosk, deleteKiosk, loading }}>
       {children}
     </KioskContext.Provider>
   );
