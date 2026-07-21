@@ -82,9 +82,9 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addKiosk = async (kioskData: any): Promise<string | undefined> => {
     try {
-      // API only accepts name, location, base_price — id is auto-generated
-      const { name, location, base_price } = kioskData;
-      const res = await api.post("/admin/kiosks", { name, location, base_price });
+      // Include id in payload as required by updated backend
+      const { id, name, location, base_price } = kioskData;
+      const res = await api.post("/admin/kiosks", { id, name, location, base_price });
       const newKiosk = res.data?.data || res.data;
       const apiKey = newKiosk?.api_key || res.data?.api_key || res.data?.data?.api_key;
       await fetchKiosks(); // re-fetch to get the server-generated kiosk
