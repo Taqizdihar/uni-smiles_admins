@@ -239,7 +239,7 @@ function AppContent() {
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
-              <ProtectedRoute allowedRoles={['Super Admin']}>
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
                 <SettingsPage />
               </ProtectedRoute>
             } />

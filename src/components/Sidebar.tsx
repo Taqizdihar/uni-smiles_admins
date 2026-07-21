@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { id: 'templates', path: '/templates', icon: ImageIcon, label: 'Templates', roles: ['Super Admin'] },
     { id: 'filters', path: '/filters', icon: Zap, label: 'Filters', roles: ['Super Admin'] },
     { id: 'users', path: '/users', icon: Users, label: 'Users', roles: ['Super Admin'] },
-    { id: 'settings', path: '/settings', icon: Settings, label: 'Settings', roles: ['Super Admin'] },
+    { id: 'settings', path: '/settings', icon: Settings, label: 'Settings', roles: ['Super Admin', 'Admin Mitra'] },
   ];
 
   const handleLogout = () => {
