@@ -99,6 +99,15 @@ export const KioskManager: React.FC = () => {
     }
   };
 
+  const handleViewApiKey = (kiosk: any) => {
+    if (kiosk.api_key) {
+      setGeneratedApiKey(kiosk.api_key);
+      setShowApiKeyModal(true);
+    } else {
+      toast.error("API Key not available for this kiosk. Please re-register it.");
+    }
+  };
+
   const handleCloseApiKeyModal = () => {
     setShowApiKeyModal(false);
     setGeneratedApiKey('');
@@ -160,13 +169,13 @@ export const KioskManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Exact required warning */}
+              {/* Modal Description */}
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 my-6 flex items-start gap-3.5 shadow-inner">
                 <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400 mt-0.5 shrink-0">
                   <Zap className="w-5 h-5" />
                 </div>
                 <p className="text-amber-200 text-xs md:text-sm font-bold leading-relaxed">
-                  Please copy this API Key and save it in the Kiosk's .env file. This key will only be shown once for security reasons.
+                  Please copy this API Key and configure it in the Kiosk's client environment for hardware authentication.
                 </p>
               </div>
 
@@ -190,7 +199,7 @@ export const KioskManager: React.FC = () => {
                   onClick={handleCloseApiKeyModal}
                   className="px-8 py-4 bg-white/10 hover:bg-white/15 text-foreground rounded-2xl font-black uppercase tracking-widest text-xs transition-all"
                 >
-                  I Have Saved It
+                  Close
                 </button>
               </div>
             </motion.div>
@@ -498,6 +507,13 @@ export const KioskManager: React.FC = () => {
                       title="Restart Kiosk"
                     >
                       <RefreshCcw className={cn("w-5 h-5", kiosk.status === 'restarting' && "animate-spin")} />
+                    </button>
+                    <button 
+                      onClick={() => handleViewApiKey(kiosk)}
+                      className="px-4 py-4 bg-white/5 hover:bg-amber-500/10 text-muted hover:text-amber-400 rounded-2xl transition-all cursor-pointer"
+                      title="View API Key"
+                    >
+                      <Key className="w-5 h-5" />
                     </button>
                     {['admin', 'Admin Mitra', 'Super Admin', 'admin_mitra'].includes(role || '') && (
                       <button 

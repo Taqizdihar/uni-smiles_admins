@@ -27,6 +27,7 @@ export interface Kiosk {
   lastHeartbeat?: any;
   createdAt?: any;
   user_id?: number | string;
+  api_key?: string;
 }
 
 interface KioskContextType {
@@ -56,7 +57,8 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     health: item.health || item.health_status || { printerInk: 100, storage: 0, camera: 'good' },
     config: item.config || item.config_settings || { brightness: 80, volume: 50, maintenanceMode: false },
     createdAt: item.createdAt || item.created_at || new Date().toISOString(),
-    lastHeartbeat: item.lastHeartbeat || item.last_heartbeat || null
+    lastHeartbeat: item.lastHeartbeat || item.last_heartbeat || null,
+    api_key: item.api_key || null
   });
 
   const fetchKiosks = async () => {
