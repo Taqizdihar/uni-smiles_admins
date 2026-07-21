@@ -213,7 +213,7 @@ export const UserManager: React.FC = () => {
     }
     async function fetchUsers() {
       try {
-        const res = await api.get("/api/users");
+        const res = await api.get("/users");
         const data = res.data;
         setUsers(Array.isArray(data) ? data : (data.data || []));
       } catch (err) {
@@ -311,12 +311,12 @@ export const UserManager: React.FC = () => {
 
     try {
       if (editingUser) {
-        const res = await api.put(`/api/users/${editingUser.id}`, formData);
+        const res = await api.put(`/users/${editingUser.id}`, formData);
         const updated = res.data.data || res.data;
         setUsers(users.map(u => u.id === editingUser.id ? updated : u));
         toast.success('User updated successfully.');
       } else {
-        const res = await api.post("/api/users", formData);
+        const res = await api.post("/users", formData);
         const newUser = res.data.data || res.data;
         setUsers([...users, newUser]);
         toast.success('User added successfully.');
@@ -339,7 +339,7 @@ export const UserManager: React.FC = () => {
 
     if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
       try {
-        await api.delete(`/api/users/${id}`);
+        await api.delete(`/users/${id}`);
         setUsers(users.filter(u => u.id !== id));
         toast.success('User deleted.');
       } catch (err) {
@@ -354,7 +354,7 @@ export const UserManager: React.FC = () => {
     if (!user) return;
     const newStatus = user.status === 'Active' ? 'Inactive' : 'Active';
     try {
-      const res = await api.put(`/api/users/${id}`, { status: newStatus });
+      const res = await api.put(`/users/${id}`, { status: newStatus });
       const updated = res.data.data || res.data;
       setUsers(users.map(u => u.id === id ? updated : u));
       toast.success('Status updated.');

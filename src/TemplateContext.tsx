@@ -98,7 +98,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/frame_templates");
+      const res = await api.get("/frame_templates");
       const rawData = res.data?.data || res.data;
       if (Array.isArray(rawData)) {
         setTemplates(rawData.map(parseTemplate));
@@ -134,7 +134,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
         layout_config: typeof layoutConfig === 'object' ? JSON.stringify(layoutConfig) : layoutConfig
       };
 
-      const res = await api.post("/api/frame_templates", payload);
+      const res = await api.post("/frame_templates", payload);
       const newTemplateRaw = res.data?.data || res.data;
       const parsed = parseTemplate(newTemplateRaw);
       
@@ -165,7 +165,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
         layout_config: layoutConfig
       };
 
-      const res = await api.put(`/api/frame_templates/${id}`, payload);
+      const res = await api.put(`/frame_templates/${id}`, payload);
       const updatedRaw = res.data?.data || res.data;
       const parsed = parseTemplate({ ...existing, ...updatedRaw, id });
       
@@ -184,7 +184,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const deleteTemplate = async (id: string): Promise<void> => {
     try {
-      await api.delete(`/api/frame_templates/${id}`);
+      await api.delete(`/frame_templates/${id}`);
       setTemplates(prev => prev.filter(t => t.id !== id));
     } catch (err: any) {
       console.error("Error deleting template:", err);

@@ -144,7 +144,7 @@ export const TemplateManagement: React.FC = () => {
     try {
       const uploadData = new FormData();
       uploadData.append('image', file);
-      const res = await api.post('/api/frame_templates/upload', uploadData);
+      const res = await api.post('/frame_templates/upload', uploadData);
       
       if (res.data?.url) {
         setFormData(prev => ({ ...prev, imageUrl: res.data.url }));

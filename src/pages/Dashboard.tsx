@@ -48,7 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
     async function fetchAnalytics() {
       setLoading(true);
       try {
-        const res = await api.get(`/api/analytics?range=${range}`);
+        const res = await api.get(`/analytics?range=${range}`);
         const resData = res.data;
         if (active) {
           setData(resData);

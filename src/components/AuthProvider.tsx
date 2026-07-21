@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(JSON.parse(storedUser));
         }
 
-        const response = await api.get('/api/auth/me');
+        const response = await api.get('/auth/me');
         const userData = response.data.user || response.data;
         setUser(userData);
         localStorage.setItem('unismiles_user', JSON.stringify(userData));

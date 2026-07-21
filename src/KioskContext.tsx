@@ -60,7 +60,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const fetchKiosks = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/kiosks");
+      const res = await api.get("/kiosks");
       const rawData = res.data?.data || res.data;
       setKiosks(Array.isArray(rawData) ? rawData.map(mapKiosk) : []);
     } catch (err) {
@@ -80,7 +80,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addKiosk = async (kioskData: any): Promise<string | undefined> => {
     try {
-      const res = await api.post("/api/kiosks", kioskData);
+      const res = await api.post("/kiosks", kioskData);
       const newKiosk = res.data?.data || res.data;
       const apiKey = newKiosk?.api_key || res.data?.api_key || res.data?.data?.api_key;
       setKiosks(prev => [...prev, mapKiosk(newKiosk)]);
@@ -95,7 +95,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateKiosk = async (id: string, data: Partial<Kiosk>) => {
     try {
-      const res = await api.put(`/api/kiosks/${id}`, data);
+      const res = await api.put(`/kiosks/${id}`, data);
       const updated = res.data?.data || res.data;
       setKiosks(prev => prev.map(k => k.id === id ? mapKiosk(updated) : k));
     } catch (err: any) {
@@ -110,7 +110,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'restarting' } : k));
       
-      await api.post(`/api/kiosks/${id}/restart`);
+      await api.post(`/kiosks/${id}/restart`);
       setTimeout(async () => {
         try {
           await fetchKiosks();
@@ -126,7 +126,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const deleteKiosk = async (id: string) => {
     try {
-      await api.delete(`/api/kiosks/${id}`);
+      await api.delete(`/kiosks/${id}`);
       setKiosks(prev => prev.filter(k => k.id !== id));
       toast.error("Kiosk Berhasil Dihapus", {
         icon: <Trash2 className="w-5 h-5 text-red-400" />,

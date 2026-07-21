@@ -31,7 +31,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
     async function fetchSessions() {
       try {
-        const res = await api.get("/api/sessions");
+        const res = await api.get("/sessions");
         const data = res.data;
         setSessions(Array.isArray(data) ? data.map((item: any) => ({
           ...item,

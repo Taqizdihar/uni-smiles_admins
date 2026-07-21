@@ -2,7 +2,7 @@ import api from './api';
 
 export async function generateMarketingContent(prompt: string) {
   try {
-    const res = await api.post("/api/ai/marketing", { prompt });
+    const res = await api.post("/ai/marketing", { prompt });
     return res.data.text;
   } catch (error) {
     console.error("AI Generation Error (via backend):", error);
@@ -12,7 +12,7 @@ export async function generateMarketingContent(prompt: string) {
 
 export async function suggestLayout(eventType: string) {
   try {
-    const res = await api.post("/api/ai/layout", { eventType });
+    const res = await api.post("/ai/layout", { eventType });
     return res.data.layout;
   } catch (error) {
     console.error("AI Layout Suggestion Error (via backend):", error);

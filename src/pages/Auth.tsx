@@ -26,14 +26,14 @@ export const Auth: React.FC = () => {
 
     try {
       if (isLogin) {
-        const response = await api.post('/api/auth/login', { email, password });
+        const response = await api.post('/auth/login', { email, password });
         const data = response.data;
         if (!data || !data.token) {
           throw new Error("Invalid response from login server.");
         }
         login(data.token, data.user);
       } else {
-        const regResponse = await api.post('/api/auth/register', { 
+        const regResponse = await api.post('/auth/register', { 
           name, 
           email, 
           password, 
@@ -45,7 +45,7 @@ export const Auth: React.FC = () => {
           login(regResponse.data.token, regResponse.data.user || regResponse.data.data);
         } else {
           try {
-            const loginRes = await api.post('/api/auth/login', { email, password });
+            const loginRes = await api.post('/auth/login', { email, password });
             const loginData = loginRes.data;
             if (loginData && loginData.token) {
               login(loginData.token, loginData.user);
@@ -60,7 +60,7 @@ export const Auth: React.FC = () => {
         }
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'An error occurred. Please try again.';
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || "Internal Server Error";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -127,6 +127,12 @@ export const Auth: React.FC = () => {
                 {isLogin ? 'Identify yourself to access the control panel.' : 'Join UniSmiles and start managing your kiosks.'}
               </p>
             </div>
+
+            {error && (
+              <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {!isLogin && (
@@ -216,24 +222,7 @@ export const Auth: React.FC = () => {
                 </div>
               </div>
 
-              <AnimatePresence mode="wait">
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-xl border text-xs font-bold overflow-hidden",
-                      error.includes("successful") 
-                        ? "bg-green-500/10 border-green-500/20 text-green-400"
-                        : "bg-red-500/10 border-red-500/20 text-red-400"
-                    )}
-                  >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+
 
               <button
                 type="submit"
