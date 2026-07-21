@@ -45,10 +45,10 @@ export const SettingsPage: React.FC = () => {
       formData.append('qris_image', file);
 
       const res = await api.post('/admin/payment-profile/qris', formData);
-      const updatedData = res.data?.data || res.data;
+      const imageUrl = res.data.url;
       
-      if (updatedData?.payment_data?.qris_image_url) {
-        setQrisUrl(updatedData.payment_data.qris_image_url);
+      if (imageUrl) {
+        setQrisUrl(imageUrl);
         toast.success('QRIS image uploaded successfully');
       } else {
         throw new Error('No image URL returned');
@@ -69,7 +69,8 @@ export const SettingsPage: React.FC = () => {
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
     if (url.startsWith('/uploads')) {
-      return `http://localhost:8000${url}`;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
+      return `${baseUrl}${url}`;
     }
     return url;
   };
