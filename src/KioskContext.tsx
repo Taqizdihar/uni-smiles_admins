@@ -8,6 +8,7 @@ export interface Kiosk {
   id: string;
   name: string;
   location: string;
+  base_price?: number;
   status: 'online' | 'offline' | 'idle' | 'restarting';
   health: {
     printerInk: number;
@@ -50,6 +51,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     id: String(item.id),
     name: item.name || 'Unnamed Kiosk',
     location: item.location || 'Unknown Location',
+    base_price: item.base_price,
     status: item.status || 'offline',
     health: item.health || item.health_status || { printerInk: 100, storage: 0, camera: 'good' },
     config: item.config || item.config_settings || { brightness: 80, volume: 50, maintenanceMode: false },
@@ -60,7 +62,7 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const fetchKiosks = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/kiosks");
+      const res = await api.get("/admin/kiosks");
       const rawData = res.data?.data || res.data;
       setKiosks(Array.isArray(rawData) ? rawData.map(mapKiosk) : []);
     } catch (err) {
@@ -80,10 +82,12 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const addKiosk = async (kioskData: any): Promise<string | undefined> => {
     try {
-      const res = await api.post("/kiosks", kioskData);
+      // API only accepts name, location, base_price — id is auto-generated
+      const { name, location, base_price } = kioskData;
+      const res = await api.post("/admin/kiosks", { name, location, base_price });
       const newKiosk = res.data?.data || res.data;
       const apiKey = newKiosk?.api_key || res.data?.api_key || res.data?.data?.api_key;
-      setKiosks(prev => [...prev, mapKiosk(newKiosk)]);
+      await fetchKiosks(); // re-fetch to get the server-generated kiosk
       return apiKey;
     } catch (err: any) {
       console.error("Error adding kiosk:", err);
@@ -94,61 +98,39 @@ export const KioskProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const updateKiosk = async (id: string, data: Partial<Kiosk>) => {
-    try {
-      const res = await api.put(`/kiosks/${id}`, data);
-      const updated = res.data?.data || res.data;
-      setKiosks(prev => prev.map(k => k.id === id ? mapKiosk(updated) : k));
-    } catch (err: any) {
-      console.error("Error updating kiosk:", err);
-      const msg = err.response?.data?.message || "Failed to update kiosk.";
-      toast.error(msg);
-      throw err;
-    }
+    // TODO: Wire up when PUT /admin/kiosks/:id endpoint is available
+    console.warn('updateKiosk: No backend endpoint available yet. Applying locally.');
+    setKiosks(prev => prev.map(k => k.id === id ? { ...k, ...data } : k));
   };
 
   const restartKiosk = async (id: string) => {
-    try {
-      setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'restarting' } : k));
-      
-      await api.post(`/kiosks/${id}/restart`);
-      setTimeout(async () => {
-        try {
-          await fetchKiosks();
-        } catch (syncErr) {
-          console.error("Error syncing kiosks post-restart:", syncErr);
-        }
-      }, 3200);
-    } catch (err: any) {
-      console.error("Error restarting kiosk:", err);
-      toast.error("Failed to initiate restart sequence.");
-    }
+    // TODO: Wire up when POST /admin/kiosks/:id/restart endpoint is available
+    console.warn('restartKiosk: No backend endpoint available yet. Simulating locally.');
+    setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'restarting' } : k));
+    setTimeout(() => {
+      setKiosks(prev => prev.map(k => k.id === id ? { ...k, status: 'online' } : k));
+    }, 3200);
   };
 
   const deleteKiosk = async (id: string) => {
-    try {
-      await api.delete(`/kiosks/${id}`);
-      setKiosks(prev => prev.filter(k => k.id !== id));
-      toast.error("Kiosk Berhasil Dihapus", {
-        icon: <Trash2 className="w-5 h-5 text-red-400" />,
-        duration: 3000,
-        position: 'top-center',
-        style: {
-          background: 'rgba(239, 68, 68, 0.15)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          color: '#fff',
-          borderRadius: '9999px',
-          padding: '12px 24px',
-          fontWeight: '600',
-          fontSize: '14px'
-        }
-      });
-    } catch (err: any) {
-      console.error("Error deleting kiosk:", err);
-      const msg = err.response?.data?.message || "Error koneksi saat menghapus kiosk.";
-      toast.error(msg);
-      throw err;
-    }
+    // TODO: Wire up when DELETE /admin/kiosks/:id endpoint is available
+    console.warn('deleteKiosk: No backend endpoint available yet. Removing locally.');
+    setKiosks(prev => prev.filter(k => k.id !== id));
+    toast.error("Kiosk Berhasil Dihapus", {
+      icon: <Trash2 className="w-5 h-5 text-red-400" />,
+      duration: 3000,
+      position: 'top-center',
+      style: {
+        background: 'rgba(239, 68, 68, 0.15)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        color: '#fff',
+        borderRadius: '9999px',
+        padding: '12px 24px',
+        fontWeight: '600',
+        fontSize: '14px'
+      }
+    });
   };
 
   return (

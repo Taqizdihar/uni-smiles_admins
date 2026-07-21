@@ -70,7 +70,7 @@ function AppContent() {
   const { user, loading, logout } = useAuth();
   const location = useLocation();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = React.useState(false);
-  const displayName = user?.name || user?.displayName || 'User';
+  const displayName = user?.full_name || user?.name || user?.displayName || 'User';
   const avatarSeed = user?.uid || user?.id || 'user';
 
   const handleLogout = () => {
@@ -222,9 +222,8 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
-            {/* Super Admin Exclusive Routes */}
             <Route path="/templates" element={
-              <ProtectedRoute allowedRoles={['Super Admin']}>
+              <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra', 'admin_mitra', 'admin']}>
                 <TemplateManagement />
               </ProtectedRoute>
             } />

@@ -98,7 +98,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/frame_templates");
+      const res = await api.get("/admin/templates");
       const rawData = res.data?.data || res.data;
       if (Array.isArray(rawData)) {
         setTemplates(rawData.map(parseTemplate));
@@ -134,7 +134,7 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
         layout_config: typeof layoutConfig === 'object' ? JSON.stringify(layoutConfig) : layoutConfig
       };
 
-      const res = await api.post("/frame_templates", payload);
+      const res = await api.post("/admin/templates", payload);
       const newTemplateRaw = res.data?.data || res.data;
       const parsed = parseTemplate(newTemplateRaw);
       
@@ -148,34 +148,13 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const updateTemplate = async (id: string, updates: any): Promise<Template | undefined> => {
-    try {
-      const existing = templates.find(t => t.id === id);
-      const name = updates.name || existing?.name || 'Untitled';
-      const category = updates.category || existing?.category || 'General';
-      const imageUrl = updates.image_url || updates.imageUrl || existing?.image_url || existing?.imageUrl || '';
-      const slotCount = Number(updates.slot_count ?? updates.slotCount ?? existing?.slot_count ?? existing?.slotCount ?? 3);
-      const rawLayout = updates.layout_config || updates.layoutConfig || existing?.layout_config || existing?.layoutConfig || { slots: [] };
-      const layoutConfig = typeof rawLayout === 'object' ? JSON.stringify(rawLayout) : rawLayout;
-
-      const payload = {
-        name,
-        category,
-        image_url: imageUrl,
-        slot_count: slotCount,
-        layout_config: layoutConfig
-      };
-
-      const res = await api.put(`/frame_templates/${id}`, payload);
-      const updatedRaw = res.data?.data || res.data;
-      const parsed = parseTemplate({ ...existing, ...updatedRaw, id });
-      
-      setTemplates(prev => prev.map(t => t.id === id ? parsed : t));
-      return parsed;
-    } catch (err: any) {
-      console.error("Error updating template:", err);
-      toast.error(err.response?.data?.message || "Error updating template in database.");
-      throw err;
-    }
+    // TODO: Wire up when PUT /admin/templates/:id endpoint is available
+    console.warn('updateTemplate: No backend endpoint available yet. Applying locally.');
+    const existing = templates.find(t => t.id === id);
+    const merged = { ...existing, ...updates, id };
+    const parsed = parseTemplate(merged);
+    setTemplates(prev => prev.map(t => t.id === id ? parsed : t));
+    return parsed;
   };
 
   const editTemplate = async (id: string, updates: any): Promise<Template | undefined> => {
@@ -183,14 +162,9 @@ export const TemplateProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const deleteTemplate = async (id: string): Promise<void> => {
-    try {
-      await api.delete(`/frame_templates/${id}`);
-      setTemplates(prev => prev.filter(t => t.id !== id));
-    } catch (err: any) {
-      console.error("Error deleting template:", err);
-      toast.error(err.response?.data?.message || "Error deleting template.");
-      throw err;
-    }
+    // TODO: Wire up when DELETE /admin/templates/:id endpoint is available
+    console.warn('deleteTemplate: No backend endpoint available yet. Removing locally.');
+    setTemplates(prev => prev.filter(t => t.id !== id));
   };
 
   return (

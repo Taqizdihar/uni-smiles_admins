@@ -38,10 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     { id: 'dashboard', path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['Super Admin', 'Admin Mitra'] },
     { id: 'kiosks', path: '/kiosks', icon: Monitor, label: 'Kiosks', roles: ['Super Admin', 'Admin Mitra'] },
     { id: 'sessions', path: '/sessions', icon: History, label: 'Sessions', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'storyboard', path: '/storyboard', icon: Camera, label: 'Storyboard', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'ai-generator', path: '/ai-generator', icon: Sparkles, label: 'AI Gen', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['Super Admin', 'Admin Mitra'] },
-    { id: 'templates', path: '/templates', icon: ImageIcon, label: 'Templates', roles: ['Super Admin'] },
+    { id: 'templates', path: '/templates', icon: Camera, label: 'Frame Templates', roles: ['Super Admin', 'Admin Mitra'] },
+    // { id: 'ai-generator', path: '/ai-generator', icon: Sparkles, label: 'AI Gen (Coming Soon)', roles: ['Super Admin', 'Admin Mitra'] },
+    // { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['Super Admin', 'Admin Mitra'] },
     { id: 'filters', path: '/filters', icon: Zap, label: 'Filters', roles: ['Super Admin'] },
     { id: 'users', path: '/users', icon: Users, label: 'Users', roles: ['Super Admin'] },
     { id: 'settings', path: '/settings', icon: Settings, label: 'Settings', roles: ['Super Admin', 'Admin Mitra'] },
@@ -122,13 +121,13 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         <div className="px-6 py-4 mx-3 mb-2 bg-black/20 rounded-2xl border border-white/5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#0F172A] border border-white/10 flex items-center justify-center overflow-hidden">
              <div className="w-full h-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-xs">
-               {user?.name
-                 ? user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+              {(user?.full_name || user?.name)
+                ? (user?.full_name || user?.name)?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
                  : 'U'}
              </div>
           </div>
           <div className="flex-1 overflow-hidden">
-             <p className="text-[10px] font-black text-foreground uppercase tracking-tight truncate">{user?.name || 'User'}</p>
+             <p className="text-[10px] font-black text-foreground uppercase tracking-tight truncate">{user?.full_name || user?.name || 'User'}</p>
              <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest truncate">
                {user?.role || 'No Role'}
              </p>

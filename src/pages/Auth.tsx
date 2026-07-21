@@ -12,7 +12,7 @@ export const Auth: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Admin Mitra');
+  const [role, setRole] = useState('operator');
   const [partnerName, setPartnerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export const Auth: React.FC = () => {
         login(data.token, data.user);
       } else {
         const regResponse = await api.post('/auth/register', { 
-          name, 
+          full_name: name, 
           email, 
           password, 
           role,
@@ -164,9 +164,8 @@ export const Auth: React.FC = () => {
                         onChange={(e) => setRole(e.target.value)}
                         className="w-full bg-black/20 border border-white/5 rounded-2xl py-4 px-4 outline-none focus:border-primary/40 focus:bg-black/30 transition-all text-sm font-bold text-foreground appearance-none cursor-pointer"
                       >
-                        <option value="Admin Mitra" className="bg-[#1E293B]">Admin Mitra</option>
-                        <option value="Super Admin" className="bg-[#1E293B]">Super Admin</option>
-                        <option value="Viewer" className="bg-[#1E293B]">Viewer</option>
+                        <option value="operator" className="bg-[#1E293B]">Admin Mitra</option>
+                        <option value="admin" className="bg-[#1E293B]">Super Admin</option>
                       </select>
                     </div>
                   </div>

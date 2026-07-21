@@ -29,7 +29,7 @@ export const KioskManager: React.FC = () => {
   // Display all real kiosks fetched from the backend
   const displayedKiosks = kiosks;
   const [isRegistering, setIsRegistering] = useState(false);
-  const [newKiosk, setNewKiosk] = useState({ id: '', name: '', location: '' });
+  const [newKiosk, setNewKiosk] = useState({ id: '', name: '', location: '', base_price: '' });
   
   // API Key Modal State
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -53,8 +53,8 @@ export const KioskManager: React.FC = () => {
   };
 
   const handleConfirmRegistration = async () => {
-    if (!newKiosk.name.trim() || !newKiosk.location.trim()) {
-      toast.error("Please fill in both Kiosk Name and Location");
+    if (!newKiosk.name.trim() || !newKiosk.location.trim() || !newKiosk.base_price.trim()) {
+      toast.error("Please fill in Name, Location, and Base Price");
       return;
     }
 
@@ -64,14 +64,15 @@ export const KioskManager: React.FC = () => {
       const kioskPayload = {
         id: newKiosk.id.trim() || `KSK-${Date.now().toString().slice(-6)}`,
         name: newKiosk.name.trim(),
-        location: newKiosk.location.trim()
+        location: newKiosk.location.trim(),
+        base_price: newKiosk.base_price ? Number(newKiosk.base_price) : undefined
       };
 
       const apiKey = await addKiosk(kioskPayload);
       
       setIsRegistering(false);
       setIsAdding(false);
-      setNewKiosk({ id: '', name: '', location: '' });
+      setNewKiosk({ id: '', name: '', location: '', base_price: '' });
 
       if (apiKey) {
         setGeneratedApiKey(apiKey);
@@ -234,7 +235,7 @@ export const KioskManager: React.FC = () => {
                   <RefreshCcw className={cn("w-4 h-4", (isRefreshing || loading) && "animate-spin")} />
                   Refresh
                 </button>
-                {role === 'admin' && (
+                {['admin', 'Admin Mitra', 'Super Admin', 'admin_mitra'].includes(role || '') && (
                   <button 
                     onClick={() => setIsAdding(true)}
                     className="px-7 py-2.5 bg-primary text-[#10172A] rounded-xl font-black uppercase tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
@@ -283,7 +284,7 @@ export const KioskManager: React.FC = () => {
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Kiosk ID (Optional)</label>
                     <input 
@@ -311,11 +312,21 @@ export const KioskManager: React.FC = () => {
                       onChange={e => setNewKiosk({...newKiosk, location: e.target.value})}
                     />
                   </div>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-muted uppercase tracking-[0.2em] ml-1">Base Price (Rp) <span className="text-primary">*</span></label>
+                    <input 
+                      type="number"
+                      placeholder="e.g. 35000"
+                      className="w-full bg-black/20 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-primary/50 transition-all text-foreground font-bold tracking-tight"
+                      value={newKiosk.base_price}
+                      onChange={e => setNewKiosk({...newKiosk, base_price: e.target.value})}
+                    />
+                  </div>
                 </div>
                 <div className="mt-10 flex gap-4">
                   <button 
                     onClick={handleConfirmRegistration}
-                    disabled={isRegistering || !newKiosk.name.trim() || !newKiosk.location.trim()}
+                    disabled={isRegistering || !newKiosk.name.trim() || !newKiosk.location.trim() || !newKiosk.base_price.trim()}
                     className="px-10 py-4 bg-primary text-[#10172A] rounded-2xl font-black uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-xl shadow-primary/10 disabled:opacity-50"
                   >
                     Confirm Registration
@@ -342,7 +353,7 @@ export const KioskManager: React.FC = () => {
                     There are currently no photobooth kiosks linked to this account. Click the register button above to connect your first station using the real API.
                   </p>
                 </div>
-                {role === 'admin' && (
+                {['admin', 'Admin Mitra', 'Super Admin', 'admin_mitra'].includes(role || '') && (
                   <button 
                     onClick={() => setIsAdding(true)}
                     className="px-8 py-3.5 bg-primary text-[#10172A] rounded-xl font-black uppercase tracking-widest text-xs shadow-xl hover:opacity-90 transition-all flex items-center gap-2"
@@ -380,6 +391,11 @@ export const KioskManager: React.FC = () => {
                             <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
                               <MapPin className="w-3 h-3 text-primary/40" /> {kiosk.location}
                             </div>
+                            {kiosk.base_price !== undefined && kiosk.base_price !== null && (
+                              <div className="flex items-center gap-2 text-[10px] text-emerald-400 font-black uppercase tracking-widest">
+                                Rp {Number(kiosk.base_price).toLocaleString('id-ID')}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 text-[10px] text-muted font-black uppercase tracking-widest">
                               <Monitor className="w-3 h-3 text-primary/40" />
                               <span className="text-foreground/90 font-black">
@@ -483,7 +499,7 @@ export const KioskManager: React.FC = () => {
                     >
                       <RefreshCcw className={cn("w-5 h-5", kiosk.status === 'restarting' && "animate-spin")} />
                     </button>
-                    {role === 'admin' && (
+                    {['admin', 'Admin Mitra', 'Super Admin', 'admin_mitra'].includes(role || '') && (
                       <button 
                         onClick={() => handleDeleteKiosk(kiosk.id, kiosk.name)}
                         className="px-4 py-4 bg-white/5 hover:bg-red-500/10 text-muted hover:text-red-400 rounded-2xl transition-all cursor-pointer"

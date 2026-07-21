@@ -4,7 +4,8 @@ import api from '../lib/api';
 export interface User {
   id: string;
   email: string;
-  name: string;
+  name?: string;
+  full_name?: string;
   role: string;
   partner_name: string;
   displayName?: string;

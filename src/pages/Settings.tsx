@@ -19,8 +19,14 @@ export const SettingsPage: React.FC = () => {
     try {
       const res = await api.get('/admin/payment-profile');
       const data = res.data?.data || res.data;
-      if (data?.payment_data?.qris_image_url) {
-        setQrisUrl(data.payment_data.qris_image_url);
+      if (data) {
+        let paymentData = data.payment_data;
+        if (typeof paymentData === 'string') {
+          try { paymentData = JSON.parse(paymentData); } catch (_) {}
+        }
+        if (paymentData?.qris_image_url) {
+          setQrisUrl(paymentData.qris_image_url);
+        }
       }
     } catch (error: any) {
       console.error('Failed to fetch payment profile:', error);

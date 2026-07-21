@@ -29,26 +29,11 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       setLoading(false);
       return;
     }
-    async function fetchSessions() {
-      try {
-        const res = await api.get("/sessions");
-        const data = res.data;
-        setSessions(Array.isArray(data) ? data.map((item: any) => ({
-          ...item,
-          id: String(item.id),
-          photos: Array.isArray(item.photos) ? item.photos : []
-        })) : (data && Array.isArray(data.data) ? data.data.map((item: any) => ({
-          ...item,
-          id: String(item.id),
-          photos: Array.isArray(item.photos) ? item.photos : []
-        })) : []));
-      } catch (err) {
-        console.error("Error fetching sessions:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchSessions();
+    // TODO: Wire up when GET /admin/sessions endpoint is available
+    // No admin sessions endpoint exists in the current API.
+    // Setting empty state to avoid 404 errors.
+    setSessions([]);
+    setLoading(false);
   }, [isAuthenticated]);
 
   return (
