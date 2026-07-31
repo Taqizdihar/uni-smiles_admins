@@ -49,7 +49,9 @@ interface KioskConfigPageProps {
   onUpdate: (id: string, updates: any) => void;
 }
 
-type TabType = 'hardware' | 'pricing' | 'customization' | 'branding' | 'operasional' | 'gallery' | 'display';
+// Legacy tab values remain typed for backwards-compatible saved state, but
+// unfinished Photobooth-facing sections are intentionally not exposed here.
+type TabType = 'hardware' | 'customization' | 'operasional' | 'gallery' | 'display' | 'pricing' | 'branding';
 
 export const KioskConfigPage: React.FC<KioskConfigPageProps> = ({ kiosk, onBack, onUpdate }) => {
   const DEFAULT_CONFIG = {
@@ -271,12 +273,8 @@ export const KioskConfigPage: React.FC<KioskConfigPageProps> = ({ kiosk, onBack,
 
   const tabs = [
     { id: 'hardware', label: 'Hardware', icon: Cpu },
-    { id: 'pricing', label: 'Session & Pricing', icon: DollarSign },
     { id: 'display', label: 'Display Settings', icon: Monitor },
-    { id: 'customization', label: 'Customization', icon: Palette },
-    { id: 'branding', label: 'Branding', icon: ShieldCheck },
     { id: 'operasional', label: 'Operasional', icon: Clock },
-    { id: 'gallery', label: 'Gallery', icon: ImageIcon },
   ];
 
   return (

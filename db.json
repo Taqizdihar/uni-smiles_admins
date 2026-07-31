@@ -139,7 +139,7 @@
     {
       "id": "#US-8821",
       "timestamp": "2026-04-01T10:15:00",
-      "template": "Gold Birthday",
+      "template": "Gold Birthday Frame",
       "photos": ["https://picsum.photos/seed/8821/200/300"],
       "amount": 35000,
       "status": "Success"
@@ -147,7 +147,7 @@
     {
       "id": "#US-8822",
       "timestamp": "2026-04-01T11:20:00",
-      "template": "Toy Story Kids",
+      "template": "Toy Story Playroom",
       "photos": ["https://picsum.photos/seed/8822/200/300"],
       "amount": 25000,
       "status": "Success"
@@ -155,7 +155,7 @@
     {
       "id": "#US-8823",
       "timestamp": "2026-04-01T13:45:00",
-      "template": "Graduation Theme",
+      "template": "Graduation Class of 2026",
       "photos": ["https://picsum.photos/seed/8823/200/300"],
       "amount": 35000,
       "status": "Failed (Paper Jam)"
@@ -163,7 +163,7 @@
     {
       "id": "#US-8824",
       "timestamp": "2026-04-01T15:10:00",
-      "template": "Gold Birthday",
+      "template": "Gold Birthday Frame",
       "photos": ["https://picsum.photos/seed/8824/200/300"],
       "amount": 35000,
       "status": "Success"
@@ -171,10 +171,34 @@
     {
       "id": "#US-8825",
       "timestamp": "2026-04-01T16:30:00",
-      "template": "Toy Story Kids",
+      "template": "Toy Story Playroom",
       "photos": ["https://picsum.photos/seed/8825/200/300"],
       "amount": 25000,
       "status": "Success"
+    },
+    {
+      "id": "#US-8826",
+      "timestamp": "2026-04-02T09:15:00",
+      "template": "Graduation Class of 2026",
+      "photos": ["https://picsum.photos/seed/8826/200/300"],
+      "amount": 30000,
+      "status": "Success"
+    },
+    {
+      "id": "#US-8827",
+      "timestamp": "2026-04-02T11:40:00",
+      "template": "Gold Birthday Frame",
+      "photos": ["https://picsum.photos/seed/8827/200/300"],
+      "amount": 30000,
+      "status": "Success"
+    },
+    {
+      "id": "#US-8828",
+      "timestamp": "2026-04-02T14:20:00",
+      "template": "Toy Story Playroom",
+      "photos": ["https://picsum.photos/seed/8828/200/300"],
+      "amount": 0,
+      "status": "Failed (Paper Jam)"
     }
   ]
 }

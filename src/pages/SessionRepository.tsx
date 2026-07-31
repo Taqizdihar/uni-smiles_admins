@@ -26,6 +26,13 @@ export const SessionRepository: React.FC = () => {
   const [resendEmail, setResendEmail] = useState('');
   const { sessions, loading } = useSession();
 
+  const getPhotoUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const backendBase = (api.defaults.baseURL || 'http://localhost:8000/api/v1').replace(/\/api\/v1\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   const templates = Array.from(new Set(sessions.map(s => s.template || 'Default')));
 
   const filteredSessions = sessions.filter(s => {
@@ -71,7 +78,7 @@ export const SessionRepository: React.FC = () => {
 
   const downloadUrl = async (url: string, filename: string) => {
     try {
-      const fullUrl = url.startsWith('/') ? `${api.defaults.baseURL || 'http://localhost:8000'}${url}` : url;
+      const fullUrl = getPhotoUrl(url);
       const response = await fetch(fullUrl);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -84,7 +91,7 @@ export const SessionRepository: React.FC = () => {
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Failed to download image", err);
-      const fullUrl = url.startsWith('/') ? `${api.defaults.baseURL || 'http://localhost:8000'}${url}` : url;
+      const fullUrl = getPhotoUrl(url);
       window.open(fullUrl, '_blank');
     }
   };
@@ -248,22 +255,28 @@ export const SessionRepository: React.FC = () => {
                     <span className="text-sm font-bold text-foreground">{session.template || 'Default'}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex -space-x-2 overflow-hidden">
-                      {(session.photos || []).slice(0, 3).map((photo: string, idx: number) => (
-                        <img 
-                          key={idx}
-                          src={photo} 
-                          alt="Session" 
-                          className="inline-block h-8 w-8 rounded-lg ring-2 ring-background object-cover shadow-lg"
-                          referrerPolicy="no-referrer"
-                        />
-                      ))}
-                      {(session.photos?.length || 0) > 3 && (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground/10 text-[10px] font-bold text-muted ring-2 ring-background">
-                          +{(session.photos?.length || 0) - 3}
-                        </div>
-                      )}
-                    </div>
+                    {(session.photos || []).length > 0 ? (
+                      <div className="flex -space-x-2 overflow-hidden">
+                        {session.photos.slice(0, 3).map((photo: string, idx: number) => (
+                          <img
+                            key={idx}
+                            src={getPhotoUrl(photo)}
+                            alt={`Session photo ${idx + 1}`}
+                            className="inline-block h-8 w-8 rounded-lg ring-2 ring-background object-cover shadow-lg"
+                            referrerPolicy="no-referrer"
+                          />
+                        ))}
+                        {session.photos.length > 3 && (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground/10 text-[10px] font-bold text-muted ring-2 ring-background">
+                            +{session.photos.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted/60">
+                        Belum ada foto
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-bold text-foreground">Rp {(session.amount || 0).toLocaleString()}</span>
@@ -359,27 +372,31 @@ export const SessionRepository: React.FC = () => {
 
               <div>
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted mb-3">Captured Photos</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {(selectedSession.photos || []).map((photoUrl: string, idx: number) => (
-                    <div key={idx} className="relative group overflow-hidden rounded-2xl border border-white/5 bg-black/20 aspect-[2/3]">
-                      <img 
-                        src={photoUrl} 
-                        alt={`Capture ${idx + 1}`} 
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-300"
-                        referrerPolicy="no-referrer"
-                      />
-                      <button 
-                        onClick={() => {
-                          downloadUrl(photoUrl, `session-${selectedSession.id}-photo-${idx + 1}.jpg`);
-                        }}
-                        className="absolute bottom-3 right-3 p-2 bg-black/80 backdrop-blur-md rounded-xl text-primary border border-primary/20 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                        title="Download Photo"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                {(selectedSession.photos || []).length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {selectedSession.photos.map((photoUrl: string, idx: number) => (
+                      <div key={idx} className="relative group overflow-hidden rounded-2xl border border-white/5 bg-black/20 aspect-[2/3]">
+                        <img
+                          src={getPhotoUrl(photoUrl)}
+                          alt={`Capture ${idx + 1}`}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-300"
+                          referrerPolicy="no-referrer"
+                        />
+                        <button
+                          onClick={() => downloadUrl(photoUrl, `session-${selectedSession.id}-photo-${idx + 1}.jpg`)}
+                          className="absolute bottom-3 right-3 p-2 bg-black/80 backdrop-blur-md rounded-xl text-primary border border-primary/20 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                          title="Download Photo"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-4 py-10 text-center text-sm font-bold text-muted">
+                    Belum ada foto untuk session ini.
+                  </div>
+                )}
               </div>
 
               {/* Action Actions */}

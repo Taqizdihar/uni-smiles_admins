@@ -30,6 +30,9 @@
   - [POST /api/v1/admin/payment-profile/qris](#post-apiv1adminpayment-profileqris)
   - [GET /api/v1/admin/templates](#get-apiv1admintemplates)
   - [POST /api/v1/admin/templates](#post-apiv1admintemplates)
+  - [GET /api/v1/admin/assets](#get-apiv1adminassets)
+  - [POST /api/v1/admin/assets](#post-apiv1adminassets)
+  - [DELETE /api/v1/admin/assets/:id](#delete-apiv1adminassetsid)
 
 ---
 
@@ -326,7 +329,8 @@ Verify and record payment for a session. Currently uses manual QRIS verification
 |---|---|---|
 | `session_code` | `string` | The session code returned from `/sessions/start` |
 
-**Request Body:** None (amount is derived from the kiosk's `base_price`)
+**Request Body:** None. The amount is derived from the selected frame template's
+`price`; when that value is `NULL`, the kiosk's `base_price` is used as a fallback.
 
 **Success Response — `200 OK`:**
 
@@ -619,6 +623,8 @@ List all frame templates belonging to the authenticated admin.
       "name": "Classic 2x2",
       "image_url": "/uploads/frame_abc123",
       "slot_count": 4,
+      "price": 20000,
+      "asset_id": 12,
       "layout_config": "{\"rows\":2,\"cols\":2,\"slots\":[...]}",
       "status": "active"
     }
@@ -632,6 +638,8 @@ List all frame templates belonging to the authenticated admin.
 | `name` | `string` | Template display name |
 | `image_url` | `string` | Path to the frame image |
 | `slot_count` | `number` | Number of photo slots in the frame |
+| `price` | `number \| null` | Price for this frame in IDR. `null` falls back to the kiosk's `base_price`. |
+| `asset_id` | `number \| null` | Optional reusable overlay asset selected for this frame. |
 | `layout_config` | `string` (JSON) | JSON string defining slot positions and dimensions |
 | `status` | `string` | Template status (`"active"`) |
 
@@ -657,6 +665,7 @@ Upload a new frame template with its layout configuration.
 | `frame_image` | `file` | Yes | The frame template image file |
 | `name` | `string` | Yes | Template display name |
 | `slot_count` | `number` | Yes | Number of photo slots |
+| `price` | `number` | Yes | Price for this frame in IDR (can be `0`) |
 | `layout_config` | `string` (JSON) | Yes | Stringified JSON defining slot layout |
 
 **Example `layout_config` value:**
@@ -715,3 +724,40 @@ Upload a new frame template with its layout configuration.
 | `POST` | `/api/v1/admin/payment-profile/qris` | Bearer Token | Upload QRIS image |
 | `GET` | `/api/v1/admin/templates` | Bearer Token | List frame templates |
 | `POST` | `/api/v1/admin/templates` | Bearer Token | Upload frame template |
+| `GET` | `/api/v1/admin/assets` | Bearer Token | List reusable frame assets |
+| `POST` | `/api/v1/admin/assets` | Bearer Token | Upload reusable PNG asset |
+| `DELETE` | `/api/v1/admin/assets/:id` | Bearer Token | Soft-delete reusable asset |
+
+### GET `/api/v1/admin/assets`
+
+List reusable assets owned by the authenticated admin. The optional `type`
+query parameter filters assets (the frame editor uses `type=logo`).
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "name": "Logo UniSmiles",
+      "type": "overlay",
+      "url": "/uploads/assets/logo-unismiles.png",
+      "mime_type": "image/png",
+      "file_size": 28431,
+      "is_active": true
+    }
+  ]
+}
+```
+
+### POST `/api/v1/admin/assets`
+
+Upload a reusable asset as `multipart/form-data`. Required fields are
+`asset` (PNG image), `name`, and `type` (`overlay`, `logo`, or `sticker`). The
+backend should validate MIME type, file size, and image dimensions, then return
+the created asset using the response shape above.
+
+### DELETE `/api/v1/admin/assets/:id`
+
+Soft-delete an asset owned by the authenticated admin. Existing frames should
+continue to render using their stored `overlayUrl`; new editor listings should
+hide inactive assets.

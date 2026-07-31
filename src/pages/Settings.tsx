@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, CreditCard, Save, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, CreditCard, Loader2, Image as ImageIcon, Plus, Trash2, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import api from '../lib/api';
+import { deleteReusableAsset, fetchReusableAssets, ReusableAsset, resolveAssetUrl, uploadReusableAsset } from '../lib/assets';
 
 export const SettingsPage: React.FC = () => {
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const assetInputRef = useRef<HTMLInputElement>(null);
+  const [assets, setAssets] = useState<ReusableAsset[]>([]);
+  const [assetName, setAssetName] = useState('');
+  const [assetUploading, setAssetUploading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
+    fetchReusableAssets('logo').then(setAssets).catch(() => undefined);
   }, []);
 
   const fetchProfile = async () => {
@@ -72,13 +78,40 @@ export const SettingsPage: React.FC = () => {
     if (file) handleFileUpload(file);
   };
 
+  const handleAssetUpload = async (file?: File) => {
+    if (!file) return;
+    if (file.type !== 'image/png') {
+      toast.error('Asset logo/overlay harus berupa PNG transparan.');
+      return;
+    }
+    setAssetUploading(true);
+    try {
+      const asset = await uploadReusableAsset(file, assetName, 'logo');
+      setAssets(current => [asset, ...current]);
+      setAssetName('');
+      toast.success('Asset berhasil disimpan dan siap dipakai di Frame Editor.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal menyimpan asset.');
+    } finally {
+      setAssetUploading(false);
+      if (assetInputRef.current) assetInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAsset = async (asset: ReusableAsset) => {
+    if (!window.confirm(`Hapus asset "${asset.name}"?`)) return;
+    try {
+      await deleteReusableAsset(asset.id);
+      setAssets(current => current.filter(item => item.id !== asset.id));
+      toast.success('Asset dihapus.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Gagal menghapus asset.');
+    }
+  };
+
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
-    if (url.startsWith('/uploads')) {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:8000';
-      return `${baseUrl}${url}`;
-    }
-    return url;
+    return resolveAssetUrl(url);
   };
 
   if (loading) {
@@ -155,6 +188,19 @@ export const SettingsPage: React.FC = () => {
             />
           </div>
         </div>
+      </div>
+
+      <div className="max-w-4xl bg-[#1E293B] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
+        <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
+          <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20"><Layers className="w-6 h-6 text-primary" /></div>
+          <div><h2 className="text-xl font-black uppercase tracking-tight text-foreground">Frame Assets</h2><p className="text-xs font-bold text-muted mt-1">Simpan logo atau overlay PNG sekali, lalu tambahkan dari Frame Editor.</p></div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <input value={assetName} onChange={e => setAssetName(e.target.value)} placeholder="Nama asset, contoh: Logo UniSmiles" className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground outline-none focus:border-primary/50" />
+          <input ref={assetInputRef} type="file" accept="image/png" className="hidden" onChange={e => handleAssetUpload(e.target.files?.[0])} />
+          <button type="button" onClick={() => assetInputRef.current?.click()} disabled={assetUploading} className="px-5 py-3 rounded-xl bg-primary text-[#10172A] text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50"><Plus className="w-4 h-4" />{assetUploading ? 'Uploading...' : 'Tambah PNG'}</button>
+        </div>
+        {assets.length === 0 ? <p className="text-sm text-muted py-8 text-center border border-dashed border-white/10 rounded-2xl">Belum ada asset reusable.</p> : <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">{assets.map(asset => <div key={asset.id} className="relative rounded-2xl border border-white/10 bg-black/20 p-3"><div className="h-28 rounded-xl bg-[linear-gradient(45deg,#182235_25%,transparent_25%),linear-gradient(-45deg,#182235_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#182235_75%),linear-gradient(-45deg,transparent_75%,#182235_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0px] flex items-center justify-center"><img src={resolveAssetUrl(asset.url)} alt={asset.name} className="max-w-full max-h-full object-contain" /></div><p className="text-xs font-bold text-foreground truncate mt-2" title={asset.name}>{asset.name}</p><button type="button" onClick={() => handleDeleteAsset(asset)} className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-muted hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button></div>)}</div>}
       </div>
     </div>
   );

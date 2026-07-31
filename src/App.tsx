@@ -193,7 +193,7 @@ function AppContent() {
             {/* Super Admin & Admin Mitra Shared Routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute allowedRoles={['Super Admin', 'Admin Mitra']}>
-                <Dashboard onNavigate={() => {}} />
+                <Dashboard />
               </ProtectedRoute>
             } />
             <Route path="/kiosks" element={

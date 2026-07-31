@@ -1,44 +1,74 @@
-import React, { useState, useEffect } from 'react';
-import { Monitor, History, DollarSign, Activity, AlertCircle } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Monitor, History, DollarSign, BarChart3, Loader2 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { useAuth } from '../components/AuthProvider';
-import api from '../lib/api';
+import { useKiosks } from '../KioskContext';
+import { useSession } from '../SessionContext';
+
+const formatCurrency = (amount: number) => new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+}).format(amount);
+
+const getSessionDate = (timestamp: unknown) => {
+  if (timestamp && typeof (timestamp as { toDate?: () => Date }).toDate === 'function') {
+    return (timestamp as { toDate: () => Date }).toDate();
+  }
+
+  const date = new Date(timestamp as string);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState({
-    totalKiosks: 0,
-    totalSessions: 0,
-    totalRevenue: 0
-  });
+  const { kiosks, loading: kiosksLoading } = useKiosks();
+  const { sessions, loading: sessionsLoading } = useSession();
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const res = await api.get('/admin/dashboard');
-        const data = res.data?.data || res.data;
-        setMetrics({
-          totalKiosks: data?.total_kiosks ?? data?.totalKiosks ?? 0,
-          totalSessions: data?.total_sessions ?? data?.totalSessions ?? 0,
-          totalRevenue: data?.total_revenue ?? data?.totalRevenue ?? 0
-        });
-      } catch (err: any) {
-        console.error('Dashboard fetch error:', err);
-        setError(err?.response?.data?.message || 'Failed to load dashboard metrics.');
-      } finally {
-        setIsLoading(false);
+  const { totalRevenue, dailySessions } = useMemo(() => {
+    const sessionsByDate = new Map<string, { date: Date; sessions: number }>();
+    let revenue = 0;
+
+    sessions.forEach((session) => {
+      // Amount berasal dari data sesi yang sama dengan halaman Session Repository.
+      revenue += Number(session.amount) || 0;
+
+      const date = getSessionDate(session.timestamp);
+      if (!date) return;
+
+      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      const summary = sessionsByDate.get(dateKey);
+      if (summary) {
+        summary.sessions += 1;
+      } else {
+        sessionsByDate.set(dateKey, { date, sessions: 1 });
       }
-    };
-    fetchDashboard();
-  }, []);
+    });
 
-  if (isLoading) {
+    return {
+      totalRevenue: revenue,
+      dailySessions: Array.from(sessionsByDate.values())
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .slice(-7)
+        .map(({ date, sessions }) => ({
+          day: date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+          sessions,
+        })),
+    };
+  }, [sessions]);
+
+  if (kiosksLoading || sessionsLoading) {
     return (
       <div className="h-full min-h-[50vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <Loader2 className="w-9 h-9 text-emerald-400 animate-spin" />
       </div>
     );
   }
@@ -47,55 +77,65 @@ export const Dashboard: React.FC = () => {
     <div className="space-y-8 text-slate-200">
       <header>
         <h1 className="text-4xl font-black uppercase text-emerald-400">Dashboard</h1>
-        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">Welcome back, {user?.full_name || user?.name}</p>
+        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">
+          Welcome back, {user?.full_name || user?.name}
+        </p>
       </header>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl flex items-center gap-3">
-          <AlertCircle className="w-5 h-5" />
-          <span className="font-bold text-sm">{error}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-slate-900 border border-emerald-500/20 p-6 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-              <Monitor className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Total Kiosks</h3>
-          </div>
-          <p className="text-4xl font-black text-emerald-400">{metrics.totalKiosks}</p>
-        </div>
-
-        <div className="bg-slate-900 border border-emerald-500/20 p-6 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-              <History className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Total Sessions</h3>
-          </div>
-          <p className="text-4xl font-black text-emerald-400">{metrics.totalSessions}</p>
-        </div>
-
-        <div className="bg-slate-900 border border-emerald-500/20 p-6 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-              <DollarSign className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Total Revenue</h3>
-          </div>
-          <p className="text-4xl font-black text-emerald-400">
-            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(metrics.totalRevenue)}
-          </p>
-        </div>
+        <MetricCard icon={Monitor} label="Total Kiosks" value={kiosks.length.toLocaleString('id-ID')} />
+        <MetricCard icon={History} label="Total Sessions" value={sessions.length.toLocaleString('id-ID')} />
+        <MetricCard icon={DollarSign} label="Total Revenue" value={formatCurrency(totalRevenue)} />
       </div>
 
-      <div className="bg-slate-900 border border-emerald-500/20 p-8 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)] flex flex-col items-center justify-center min-h-[300px]">
-        <Activity className="w-12 h-12 text-slate-700 mb-4" />
-        <h3 className="text-xl font-black uppercase text-slate-500 tracking-widest">Not enough data for charts</h3>
-        <p className="text-sm font-bold text-slate-600 mt-2">Charts will be available once more sessions are recorded.</p>
-      </div>
+      <section className="bg-slate-900 border border-emerald-500/20 p-6 md:p-8 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
+        <div className="flex items-start gap-3 mb-6">
+          <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
+            <BarChart3 className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black uppercase tracking-wide text-slate-100">Ringkasan Sesi Photobooth</h2>
+            <p className="text-sm text-slate-400 mt-1">Jumlah sesi yang tercatat per hari (maks. 7 hari terakhir).</p>
+          </div>
+        </div>
+
+        {dailySessions.length ? (
+          <div className="h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailySessions} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" vertical={false} />
+                <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }}
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '12px' }}
+                  labelStyle={{ color: '#cbd5e1' }}
+                  itemStyle={{ color: '#34d399', fontWeight: 700 }}
+                  formatter={(value) => [`${value} sesi`, 'Total sesi']}
+                />
+                <Bar dataKey="sessions" fill="#34d399" radius={[8, 8, 0, 0]} maxBarSize={56} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[280px] flex flex-col items-center justify-center text-center">
+            <BarChart3 className="w-10 h-10 text-slate-600 mb-3" />
+            <p className="font-bold text-slate-400">Belum ada sesi photobooth untuk ditampilkan.</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 };
+
+const MetricCard: React.FC<{ icon: React.ElementType; label: string; value: string }> = ({ icon: Icon, label, value }) => (
+  <div className="bg-slate-900 border border-emerald-500/20 p-6 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
+    <div className="flex items-center gap-4 mb-4">
+      <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
+        <Icon className="w-6 h-6" />
+      </div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">{label}</h3>
+    </div>
+    <p className="text-4xl font-black text-emerald-400">{value}</p>
+  </div>
+);
