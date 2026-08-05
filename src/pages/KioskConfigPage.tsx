@@ -274,6 +274,7 @@ export const KioskConfigPage: React.FC<KioskConfigPageProps> = ({ kiosk, onBack,
   const tabs = [
     { id: 'hardware', label: 'Hardware', icon: Cpu },
     { id: 'display', label: 'Display Settings', icon: Monitor },
+    { id: 'pricing', label: 'Pricing & Session', icon: DollarSign },
     { id: 'operasional', label: 'Operasional', icon: Clock },
   ];
 

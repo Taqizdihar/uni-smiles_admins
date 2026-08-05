@@ -11,7 +11,8 @@ import {
   Key, 
   Copy, 
   Check, 
-  Zap
+  Zap,
+  Clock,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -414,6 +415,21 @@ export const KioskManager: React.FC = () => {
                                 ({kiosk.config?.resolution || (kiosk.config?.orientation === 'landscape' ? '1920x1080' : '1080x1920')})
                               </span>
                             </div>
+                            {/* Last heartbeat — when did this kiosk last phone home? */}
+                            <div className="flex items-center gap-1.5 text-[9px] text-muted/70 font-semibold">
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>
+                                {kiosk.lastHeartbeat
+                                  ? (() => {
+                                      const diffSec = Math.floor((Date.now() - new Date(kiosk.lastHeartbeat).getTime()) / 1000);
+                                      if (diffSec < 10) return 'Terakhir aktif: baru saja';
+                                      if (diffSec < 60) return `Terakhir aktif: ${diffSec}d lalu`;
+                                      if (diffSec < 3600) return `Terakhir aktif: ${Math.floor(diffSec / 60)} mnt lalu`;
+                                      return `Terakhir aktif: ${Math.floor(diffSec / 3600)} jam lalu`;
+                                    })()
+                                  : 'Belum pernah terhubung'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -467,28 +483,6 @@ export const KioskManager: React.FC = () => {
                         )}>
                           {kiosk.health?.camera || 'N/A'}
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Active Filters list */}
-                    <div className="mb-6 pt-4 border-t border-white/5">
-                      <span className="text-[8px] font-black text-muted uppercase tracking-widest block mb-2">Active Filters</span>
-                      <div className="flex flex-wrap gap-1.5 min-h-[20px]">
-                        {kiosk.config?.filters && kiosk.config.filters.filter((f: any) => f.active).length > 0 ? (
-                          kiosk.config.filters.filter((f: any) => f.active).map((f: any) => (
-                            <span key={f.id || f.name} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">
-                              {f.name}
-                            </span>
-                          ))
-                        ) : (
-                          <>
-                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Original</span>
-                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Black & White</span>
-                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Vintage</span>
-                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Warm Tone</span>
-                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase rounded-full tracking-wider">Cool Tone</span>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>

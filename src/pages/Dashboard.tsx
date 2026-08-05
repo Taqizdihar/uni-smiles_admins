@@ -1,9 +1,20 @@
-import React, { useMemo } from 'react';
-import { Monitor, History, DollarSign, BarChart3, Loader2 } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
-  Bar,
-  BarChart,
+  Activity,
+  ArrowUpRight,
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  History,
+  Loader2,
+  Monitor,
+  Wifi,
+} from 'lucide-react';
+import {
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -28,114 +39,238 @@ const getSessionDate = (timestamp: unknown) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const dayKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const compactCurrency = (amount: number) => {
+  if (amount >= 1_000_000_000) return `Rp ${(amount / 1_000_000_000).toFixed(1)} M`;
+  if (amount >= 1_000_000) return `Rp ${(amount / 1_000_000).toFixed(1)} jt`;
+  if (amount >= 1_000) return `Rp ${(amount / 1_000).toFixed(0)} rb`;
+  return `Rp ${amount}`;
+};
+
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { kiosks, loading: kiosksLoading } = useKiosks();
+  const { kiosks, loading: kiosksLoading, lastFetchedAt } = useKiosks();
   const { sessions, loading: sessionsLoading } = useSession();
 
-  const { totalRevenue, dailySessions } = useMemo(() => {
-    const sessionsByDate = new Map<string, { date: Date; sessions: number }>();
-    let revenue = 0;
+  // Ticking "diperbarui X detik lalu" label
+  const [secondsAgo, setSecondsAgo] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!lastFetchedAt) return;
+    const update = () => setSecondsAgo(Math.floor((Date.now() - lastFetchedAt.getTime()) / 1000));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [lastFetchedAt]);
+
+  const lastUpdatedLabel = secondsAgo === null
+    ? 'Memuat...'
+    : secondsAgo < 5
+      ? 'Baru saja'
+      : secondsAgo < 60
+        ? `${secondsAgo} detik lalu`
+        : `${Math.floor(secondsAgo / 60)} menit lalu`;
+
+  const summary = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 89);
+    startDate.setHours(0, 0, 0, 0);
+
+    const revenueByDay = new Map<string, number>();
+    let totalRevenue = 0;
+    let recentRevenue = 0;
+    let recentSessions = 0;
 
     sessions.forEach((session) => {
-      // Amount berasal dari data sesi yang sama dengan halaman Session Repository.
-      revenue += Number(session.amount) || 0;
-
+      const amount = Number(session.amount) || 0;
+      totalRevenue += amount;
       const date = getSessionDate(session.timestamp);
       if (!date) return;
 
-      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-      const summary = sessionsByDate.get(dateKey);
-      if (summary) {
-        summary.sessions += 1;
-      } else {
-        sessionsByDate.set(dateKey, { date, sessions: 1 });
+      if (date >= startDate && date <= today) {
+        const key = dayKey(date);
+        revenueByDay.set(key, (revenueByDay.get(key) || 0) + amount);
+        recentRevenue += amount;
+        recentSessions += 1;
       }
     });
 
+    const revenueTrend = Array.from({ length: 90 }, (_, index) => {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + index);
+      return {
+        date: dayKey(date),
+        label: date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+        revenue: revenueByDay.get(dayKey(date)) || 0,
+      };
+    });
+
+    const onlineKiosks = kiosks.filter((kiosk) => kiosk.status === 'online').length;
+    const idleKiosks = kiosks.filter((kiosk) => kiosk.status === 'idle').length;
+    const offlineKiosks = kiosks.filter((kiosk) => kiosk.status === 'offline').length;
+
     return {
-      totalRevenue: revenue,
-      dailySessions: Array.from(sessionsByDate.values())
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
-        .slice(-7)
-        .map(({ date, sessions }) => ({
-          day: date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
-          sessions,
-        })),
+      totalRevenue,
+      recentRevenue,
+      recentSessions,
+      revenueTrend,
+      onlineKiosks,
+      idleKiosks,
+      offlineKiosks,
     };
-  }, [sessions]);
+  }, [kiosks, sessions]);
 
   if (kiosksLoading || sessionsLoading) {
     return (
       <div className="h-full min-h-[50vh] flex items-center justify-center">
-        <Loader2 className="w-9 h-9 text-emerald-400 animate-spin" />
+        <Loader2 className="w-9 h-9 text-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 text-slate-200">
-      <header>
-        <h1 className="text-4xl font-black uppercase text-emerald-400">Dashboard</h1>
-        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">
-          Welcome back, {user?.full_name || user?.name}
-        </p>
+    <div className="max-w-[1500px] mx-auto space-y-7 pb-8 animate-in fade-in duration-500">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.24em] text-primary mb-3">
+            <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_currentColor]" />
+            Overview
+          </div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted mt-2">Pantau performa Uni-Smiles secara real-time, {user?.full_name || user?.name || 'Admin'}.</p>
+        </div>
+        <div className="flex items-center gap-2 self-start lg:self-auto rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-muted">
+          <Activity className="w-4 h-4 text-primary" />
+          Data aktual dari sistem
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard icon={Monitor} label="Total Kiosks" value={kiosks.length.toLocaleString('id-ID')} />
-        <MetricCard icon={History} label="Total Sessions" value={sessions.length.toLocaleString('id-ID')} />
-        <MetricCard icon={DollarSign} label="Total Revenue" value={formatCurrency(totalRevenue)} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <MetricCard icon={DollarSign} label="Total Revenue" value={formatCurrency(summary.totalRevenue)} detail={`${compactCurrency(summary.recentRevenue)} · 90 hari`} accent="gold" />
+        <MetricCard icon={History} label="Total Sessions" value={sessions.length.toLocaleString('id-ID')} detail={`${summary.recentSessions.toLocaleString('id-ID')} sesi · 90 hari`} accent="blue" />
+        <MetricCard icon={Monitor} label="Total Kiosks" value={kiosks.length.toLocaleString('id-ID')} detail={`${summary.onlineKiosks} kiosk online`} accent="green" />
+        <MetricCard icon={Wifi} label="Kiosk Offline" value={summary.offlineKiosks.toLocaleString('id-ID')} detail={`${summary.idleKiosks} kiosk idle`} accent="red" />
       </div>
 
-      <section className="bg-slate-900 border border-emerald-500/20 p-6 md:p-8 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-        <div className="flex items-start gap-3 mb-6">
-          <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
-            <BarChart3 className="w-5 h-5" />
-          </div>
+      <section className="dashboard-panel p-5 md:p-7 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
           <div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-slate-100">Ringkasan Sesi Photobooth</h2>
-            <p className="text-sm text-slate-400 mt-1">Jumlah sesi yang tercatat per hari (maks. 7 hari terakhir).</p>
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-extrabold tracking-tight">Revenue Overview</h2>
+            </div>
+            <p className="text-sm text-muted">Pendapatan per hari berdasarkan sesi photobooth yang tercatat.</p>
           </div>
+          <span className="self-start rounded-lg border border-white/10 bg-[#101a2c] px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-muted">
+            Last 90 days <Clock3 className="inline w-3 h-3 ml-1" />
+          </span>
         </div>
 
-        {dailySessions.length ? (
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailySessions} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" vertical={false} />
-                <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }}
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '12px' }}
-                  labelStyle={{ color: '#cbd5e1' }}
-                  itemStyle={{ color: '#34d399', fontWeight: 700 }}
-                  formatter={(value) => [`${value} sesi`, 'Total sesi']}
-                />
-                <Bar dataKey="sessions" fill="#34d399" radius={[8, 8, 0, 0]} maxBarSize={56} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-[280px] flex flex-col items-center justify-center text-center">
-            <BarChart3 className="w-10 h-10 text-slate-600 mb-3" />
-            <p className="font-bold text-slate-400">Belum ada sesi photobooth untuk ditampilkan.</p>
-          </div>
-        )}
+        <div className="h-[300px] md:h-[360px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={summary.revenueTrend} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff0b" vertical={false} />
+              <XAxis
+                dataKey="date"
+                interval={14}
+                tickFormatter={(value) => summary.revenueTrend.find((item) => item.date === value)?.label || value}
+                stroke="#94a3b8"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                dy={12}
+              />
+              <YAxis
+                tickFormatter={compactCurrency}
+                stroke="#94a3b8"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                width={74}
+              />
+              <Tooltip
+                labelFormatter={(value) => summary.revenueTrend.find((item) => item.date === value)?.label || value}
+                formatter={(value) => [formatCurrency(Number(value)), 'Revenue']}
+                contentStyle={{ background: '#111c2f', border: '1px solid rgba(255,184,0,0.28)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,.3)' }}
+                labelStyle={{ color: '#f8fafc', fontWeight: 700, marginBottom: 4 }}
+                itemStyle={{ color: '#ffb800', fontWeight: 800 }}
+                cursor={{ stroke: '#ffb800', strokeOpacity: 0.18 }}
+              />
+              <Line type="monotone" dataKey="revenue" stroke="#ffb800" strokeWidth={3.5} dot={false} activeDot={{ r: 5, fill: '#ffb800', stroke: '#111c2f', strokeWidth: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <section className="dashboard-panel p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-extrabold">Status Kiosk</h2>
+              <p className="text-sm text-muted mt-1">Ringkasan status dari semua kiosk terdaftar.</p>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              {/* Live pulse indicator */}
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                </span>
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-400">Live</span>
+              </div>
+              {/* Last updated timestamp */}
+              <span className="text-[10px] text-muted">
+                Diperbarui: {lastUpdatedLabel}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatusItem icon={CheckCircle2} label="Online" value={summary.onlineKiosks} color="green" />
+            <StatusItem icon={Clock3} label="Idle" value={summary.idleKiosks} color="gold" />
+            <StatusItem icon={Wifi} label="Offline" value={summary.offlineKiosks} color="red" />
+          </div>
+        </section>
+
+        <section className="dashboard-panel p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-extrabold">Session Activity</h2>
+              <p className="text-sm text-muted mt-1">Aktivitas 90 hari terakhir.</p>
+            </div>
+            <ArrowUpRight className="w-5 h-5 text-primary" />
+          </div>
+          <p className="text-3xl font-extrabold text-foreground">{summary.recentSessions.toLocaleString('id-ID')}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-primary mt-2">Sessions recorded</p>
+        </section>
+      </div>
     </div>
   );
 };
 
-const MetricCard: React.FC<{ icon: React.ElementType; label: string; value: string }> = ({ icon: Icon, label, value }) => (
-  <div className="bg-slate-900 border border-emerald-500/20 p-6 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-    <div className="flex items-center gap-4 mb-4">
-      <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-        <Icon className="w-6 h-6" />
-      </div>
-      <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">{label}</h3>
+const MetricCard: React.FC<{ icon: React.ElementType; label: string; value: string; detail: string; accent: 'gold' | 'blue' | 'green' | 'red' }> = ({ icon: Icon, label, value, detail, accent }) => (
+  <div className={`metric-card metric-${accent}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="metric-icon"><Icon className="w-5 h-5" /></div>
+      <ArrowUpRight className="w-4 h-4 text-white/30" />
     </div>
-    <p className="text-4xl font-black text-emerald-400">{value}</p>
+    <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted mt-5">{label}</p>
+    <p className="text-2xl font-extrabold tracking-tight text-foreground mt-2 truncate">{value}</p>
+    <p className="text-xs text-muted mt-2">{detail}</p>
+  </div>
+);
+
+const StatusItem: React.FC<{ icon: React.ElementType; label: string; value: number; color: 'green' | 'gold' | 'red' }> = ({ icon: Icon, label, value, color }) => (
+  <div className="rounded-xl border border-white/8 bg-black/10 p-4">
+    <div className={`status-dot status-${color}`}><Icon className="w-4 h-4" /></div>
+    <p className="text-xs font-bold text-muted mt-3">{label}</p>
+    <p className="text-2xl font-extrabold mt-1">{value.toLocaleString('id-ID')}</p>
   </div>
 );
